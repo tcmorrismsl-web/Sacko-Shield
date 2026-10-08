@@ -11,18 +11,51 @@ Three things change when the app leaves claude.ai:
 And one thing gets better: no artifact CSP, so the page can call the Sleeper
 API directly from the browser and refresh itself.
 """
-import json, pathlib, re
+import argparse, json, pathlib, re
 
-APP = pathlib.Path("/home/claude/app")
-OUT = pathlib.Path("/mnt/user-data/outputs/sacko-shield.html")
+ap = argparse.ArgumentParser()
+ap.add_argument("--app", default="/home/claude/app", help="folder holding index.html and data/")
+ap.add_argument("--out", default="/mnt/user-data/outputs/sacko-shield.html")
+ap.add_argument("--public", action="store_true",
+                help="build for GitHub Pages: ship NO league data (no manager or team "
+                     "names, no league IDs); viewers connect their own leagues in the browser")
+args = ap.parse_args()
+
+APP = pathlib.Path(args.app)
+OUT = pathlib.Path(args.out)
 DATA = ["players", "schedule", "picks", "meta", "leagues"]
+
+# A single placeholder league for the public build. The app needs at least one
+# league to boot; this one has generic team names and no IDs. Leagues the viewer
+# connects are saved in their own browser (localStorage), never in this file.
+PLACEHOLDER = [{
+    "key": "placeholder", "sample": True, "source": "placeholder", "platform": "Demo",
+    "name": "Connect your league", "league_id": None, "season": 2026, "type": "redraft",
+    "teams": 10, "scoring": "ppr",
+    "roster_positions": ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "DEF", "K"] + ["BN"] * 6,
+    "my_team": "1", "status": "standings_only",
+    "note": "No league data ships with this public copy. Use Connect to load your "
+            "Sleeper or ESPN league; it is saved in this browser only.",
+    "rosters": [{"id": str(i), "name": f"Team {i}", "owner": "", "players": [],
+                 "starters": [], "picks": [], "wins": 0, "losses": 0,
+                 "pf": 0.0, "pa": 0.0} for i in range(1, 11)],
+    "results": [],
+}]
 
 src = (APP / "index.html").read_text()
 
 # ---------------------------------------------------------------- data inline
 blobs = []
 for name in DATA:
-    raw = (APP / "data" / f"{name}.json").read_text()
+    if args.public and name == "leagues":
+        raw = json.dumps(PLACEHOLDER, separators=(",", ":"))
+    elif args.public and name == "meta":
+        meta = json.loads((APP / "data" / "meta.json").read_text())
+        for k in ("league_verification", "build_note"):   # league-specific notes
+            meta.pop(k, None)
+        raw = json.dumps(meta, separators=(",", ":"))
+    else:
+        raw = (APP / "data" / f"{name}.json").read_text()
     # a JSON string containing "</script>" would close the tag early
     safe = raw.replace("</", "<\\/")
     blobs.append('<script type="application/json" id="d-%s">%s</script>'
@@ -297,6 +330,19 @@ head_end = doc.index("<style>\n:root{")
 title_block, rest = doc[:head_end], doc[head_end:]
 doc = title_block + "</head>\n<body>\n" + rest.replace(
     "</head>\n<body></body>\n</html>", "</body>\n</html>")
+
+# Guard: a public build must not contain any name or ID from the local leagues file.
+if args.public and (APP / "data" / "leagues.json").exists():
+    leaked = set()
+    for lg in json.loads((APP / "data" / "leagues.json").read_text()):
+        terms = {lg.get("name"), str(lg.get("league_id") or "")}
+        for r in lg.get("rosters", []):
+            terms |= {r.get("name"), r.get("owner")}
+        for t in terms:
+            if t and len(t) >= 4 and re.search(r"(?<![A-Za-z0-9])" + re.escape(t) + r"(?![A-Za-z0-9])", doc):
+                leaked.add(t)
+    if leaked:
+        raise SystemExit(f"public build would expose {len(leaked)} private names/IDs; not written")
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 OUT.write_text(doc)

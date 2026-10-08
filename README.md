@@ -33,6 +33,23 @@ rebuilds `leagues.json` (or you copy it in). Tests find leagues by shape (source
 and scoring), not by ID, so they work against whatever local file you have.
 Before committing, `git status` should never list any of the files above.
 
+## Public test page (GitHub Pages)
+
+`index.html` at the repo root is the standalone app built **without any league
+data**: it ships one placeholder league ("Connect your league") with generic team
+names. Open the Pages URL, tap **League**, and load a Sleeper or ESPN league by ID.
+That league is saved in your browser only (localStorage), never in this repo.
+
+Rebuild it after changing `app/index.html`:
+
+```
+python3 pipeline/build_standalone.py --app app --out index.html --public
+```
+
+`--public` swaps in the placeholder league, drops league-specific notes from
+meta, and refuses to write the file if any name or ID from your local
+`leagues.json` would end up in it.
+
 ## Pipeline order
 
 ```
