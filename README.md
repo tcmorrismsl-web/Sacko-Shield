@@ -40,6 +40,13 @@ data**: it ships one placeholder league ("Connect your league") with generic tea
 names. Open the Pages URL, tap **League**, and load a Sleeper or ESPN league by ID.
 That league is saved in your browser only (localStorage), never in this repo.
 
+**Personal link.** In the League panel, pick your team in each league, then tap
+**Copy my link**. The link looks like `…/Sacko-Shield/#leagues=s:<id>:<team>,e:<id>:<team>`
+(`s` = Sleeper, `e` = ESPN). Opening it on any device loads those leagues live,
+selects your team in each, and saves them in that browser, so bookmark it or add
+it to your home screen. The part after `#` is never sent to GitHub. Your team is
+remembered per league.
+
 Rebuild it after changing `app/index.html`:
 
 ```

@@ -3353,6 +3353,64 @@ function openPlayer(id) {
   });
 }
 
+/* ------------------------------------------------------------ personal link
+   The public copy ships no league data. A personal link carries league IDs and
+   which team is yours in the URL fragment (after #), which browsers never send
+   to the server:  #leagues=s:<sleeperId>:<rosterId>,e:<espnId>:<teamId>
+   Opening it on any device loads those leagues live and saves them in that
+   browser, so a bookmark or home-screen icon "locks in" the leagues. */
+function dropPlaceholder() {
+  if (S.leagues.some(l => l.source !== "placeholder"))
+    S.leagues = S.leagues.filter(l => l.source !== "placeholder");
+}
+
+function parseLink() {
+  const m = /(?:^|[#&])leagues=([^&]+)/.exec(location.hash);
+  if (!m) return [];
+  return decodeURIComponent(m[1]).split(",").map(part => {
+    const [src, id, team] = part.split(":");
+    if (!/^[se]$/.test(src) || !/^\d{3,25}$/.test(id || "")) return null;
+    return { src, id, team: team || "", key: (src === "s" ? "sleeper-" : "espn-") + id };
+  }).filter(Boolean);
+}
+
+function myLink() {
+  const parts = S.leagues.filter(l => l.league_id && l.source !== "placeholder").map(l => {
+    const team = l.key === S.league.key ? S.myTeam : l.my_team;
+    return `${l.source === "espn" ? "e" : "s"}:${l.league_id}${team ? ":" + team : ""}`;
+  });
+  return parts.length ? `${location.origin}${location.pathname}#leagues=${parts.join(",")}` : "";
+}
+
+async function loadFromLink() {
+  const want = parseLink();
+  if (!want.length) return null;
+  const failed = [];
+  for (const w of want) {
+    let lg = S.leagues.find(l => l.key === w.key);
+    if (!lg || !hasRosters(lg)) {
+      try {
+        let fresh = w.src === "s" ? await trySleeper(w.id)
+                                  : await tryEspn(w.id, S.meta.season);
+        fresh.key = w.key;
+        if (w.src === "s") { fresh.status = "full"; fresh.platform = "Sleeper"; }
+        lg = mergeLeague(lg, fresh);
+      } catch (err) { failed.push(w.id); continue; }
+    }
+    if (w.team && lg.rosters.some(r => r.id === w.team)) lg.my_team = w.team;
+    if (!lg.my_team && lg.rosters.length) lg.my_team = lg.rosters[0].id;
+    for (const r of lg.rosters)
+      if (!(lg._shipped || {})[r.id]) (lg._shipped = lg._shipped || {})[r.id] = (r.players || []).slice();
+    S.leagues = [...S.leagues.filter(l => l.key !== lg.key), lg];
+    saveConnected(lg);
+  }
+  dropPlaceholder();
+  const first = want.map(w => w.key).find(k => S.leagues.some(l => l.key === k));
+  if (first) switchLeague(first);
+  if (failed.length) toast(`Couldn't load league ${failed.join(", ")} — tap League to retry.`);
+  return first || null;
+}
+
 function openConnect() {
   const lg = S.league;
   const el = document.createElement("div");
@@ -3422,6 +3480,16 @@ function openConnect() {
 
     <hr class="divider">
     <div class="stack" style="gap:7px">
+      <span class="eyebrow">Your personal link</span>
+      <div class="row"><button class="btn" id="linkCopy">Copy my link</button></div>
+      <input type="text" id="linkBox" readonly hidden aria-label="Your personal link">
+      <span class="sub">Bookmark it or add it to your home screen. Opening it on any
+        device loads these leagues and your team automatically — no reconnecting.
+        Pick your team in each league first.</span>
+    </div>
+
+    <hr class="divider">
+    <div class="stack" style="gap:7px">
       <span class="eyebrow">Export</span>
       <div class="row"><button class="btn ghost sm" data-export="all">Everything to Excel</button></div>
     </div>
@@ -3431,7 +3499,16 @@ function openConnect() {
   el.addEventListener("click", e => { if (e.target === el) close(); });
   $("[data-close]", el).addEventListener("click", close);
   $("#teamSel", el)?.addEventListener("change", e => {
-    S.myTeam = e.target.value; saveState(); show(S.tab);
+    S.myTeam = e.target.value; S.league.my_team = S.myTeam;
+    if (S.league.source !== "placeholder") saveConnected(S.league);
+    saveState(); show(S.tab);
+  });
+  $("#linkCopy", el)?.addEventListener("click", async () => {
+    const url = myLink(), box = $("#linkBox", el);
+    if (!url) { box.value = "Connect a league first."; return; }
+    box.value = url; box.hidden = false; box.select();
+    try { await navigator.clipboard.writeText(url); $("#linkCopy", el).textContent = "Copied"; }
+    catch { $("#linkCopy", el).textContent = "Select and copy below"; }
   });
   $$("[data-league]", el).forEach(b => b.addEventListener("click", () => {
     switchLeague(b.dataset.league); close();
@@ -3448,6 +3525,7 @@ function openConnect() {
       S.leagues = [...S.leagues.filter(l => l.key !== lgNew.key), lgNew];
       S.live = true;
       saveConnected(lgNew);
+      dropPlaceholder();
       msg.innerHTML = `<span class="chip good">Connected</span> ${esc(lgNew.name)}`;
       switchLeague(lgNew.key);
       close();
@@ -4029,6 +4107,7 @@ async function boot() {
   for (const lg of S.leagues)
     if (!lg._shipped) lg._shipped = Object.fromEntries(
       lg.rosters.map(r => [r.id, (r.players || []).slice()]));
+  dropPlaceholder();
   S.league = S.leagues.find(hasRosters) || S.leagues[0];
   S.myTeam = S.league.my_team || (S.league.rosters[0] || {}).id || null;
 
@@ -4090,12 +4169,15 @@ async function boot() {
 
   // capabilities resolve after first paint; the page is fully usable without them
   (async () => {
+    const fromLink = await loadFromLink();
     refreshSleeper();
     const saved = await loadState();
     if (saved?.leagueKey && S.leagues.some(l => l.key === saved.leagueKey)) {
       switchLeague(saved.leagueKey);
     }
-    if (saved?.myTeam && S.league.rosters.some(r => r.id === saved.myTeam)) {
+    if (S.league.my_team && S.league.source !== "placeholder") {
+      S.myTeam = S.league.my_team; show(S.tab);
+    } else if (saved?.myTeam && S.league.rosters.some(r => r.id === saved.myTeam)) {
       S.myTeam = saved.myTeam; show(S.tab);
     }
   })();
