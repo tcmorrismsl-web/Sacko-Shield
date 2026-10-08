@@ -1,0 +1,13 @@
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+pipeline/feeds/
+pipeline/raw/
+*.log
+
+# Private league data: manager names, team names and league IDs.
+# These stay on your computer only; the pipeline rebuilds them.
+app/data/leagues.json
+pipeline/espn/
+docs/leagues.md

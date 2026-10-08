@@ -1,0 +1,4018 @@
+
+<title>Sacko Shield</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+:root{
+  --paper:#eef1f0; --card:#ffffff; --card2:#f6f9f8; --sunk:#e4eae8;
+  --ink:#11201e; --ink2:#3c514d; --muted:#6b807c; --line:#d6e0dd;
+  --brand:#0f3b3a; --brand-soft:#dfeae7; --on-brand:#f4f8f7;
+  --accent:#b8860b; --accent-soft:#f7edd2;
+  --good:#2f7a5b; --good-soft:#dcefe6; --warn:#a9691a; --warn-soft:#f8ecd9;
+  --bad:#a8432f; --bad-soft:#f7e2dd;
+  --shadow:0 1px 2px rgba(16,32,30,.06), 0 6px 18px -10px rgba(16,32,30,.22);
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0b1312; --card:#131e1c; --card2:#182422; --sunk:#0e1817;
+    --ink:#e6efec; --ink2:#b6c7c2; --muted:#879a95; --line:#25352f;
+    --brand:#5cb8a0; --brand-soft:#16302b; --on-brand:#06110f;
+    --accent:#e3b23c; --accent-soft:#2c2412;
+    --good:#4fae86; --good-soft:#12271f; --warn:#d09a42; --warn-soft:#2a2113;
+    --bad:#d4735c; --bad-soft:#2d1a16;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 22px -12px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0b1312; --card:#131e1c; --card2:#182422; --sunk:#0e1817;
+  --ink:#e6efec; --ink2:#b6c7c2; --muted:#879a95; --line:#25352f;
+  --brand:#5cb8a0; --brand-soft:#16302b; --on-brand:#06110f;
+  --accent:#e3b23c; --accent-soft:#2c2412;
+  --good:#4fae86; --good-soft:#12271f; --warn:#d09a42; --warn-soft:#2a2113;
+  --bad:#d4735c; --bad-soft:#2d1a16;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 22px -12px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:Archivo, "Helvetica Neue", Arial, sans-serif;
+  font-size:14px; line-height:1.45; -webkit-text-size-adjust:100%;
+}
+.mono{font-family:"IBM Plex Mono", ui-monospace, Menlo, monospace; font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0; text-wrap:balance; line-height:1.15}
+button,input,select{font:inherit; color:inherit}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important; transition:none!important}}
+
+/* ---------- shell ---------- */
+.top{
+  position:sticky; top:env(safe-area-inset-top,0px); z-index:40;
+  background:var(--brand); color:var(--on-brand);
+  box-shadow:0 1px 0 rgba(0,0,0,.14);
+}
+.top-in{max-width:1180px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.mark{display:flex; align-items:center; gap:9px; margin-right:auto; min-width:0}
+.mark svg{flex:none}
+.mark b{font-size:17px; font-weight:800; letter-spacing:-.015em; white-space:nowrap}
+.mark span{font-size:11px; opacity:.72; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap}
+.topbtn{
+  background:rgba(255,255,255,.12); color:inherit; border:1px solid rgba(255,255,255,.2);
+  border-radius:99px; padding:5px 12px; font-size:12.5px; font-weight:600; cursor:pointer;
+}
+.topbtn:hover{background:rgba(255,255,255,.2)}
+
+.tabs{
+  position:sticky; top:calc(env(safe-area-inset-top,0px) + 48px); z-index:35;
+  background:var(--card); border-bottom:1px solid var(--line);
+  overflow-x:auto; scrollbar-width:none;
+}
+.tabs::-webkit-scrollbar{display:none}
+.tabs-in{max-width:1180px; margin:0 auto; display:flex; gap:2px; padding:0 10px}
+.tab{
+  background:none; border:0; border-bottom:2.5px solid transparent; cursor:pointer;
+  padding:11px 12px; font-size:13.5px; font-weight:600; color:var(--muted); white-space:nowrap;
+}
+.tab[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--accent)}
+
+main{max-width:1180px; margin:0 auto; padding-block:18px 64px; padding-left:16px; padding-right:16px}
+
+/* ---------- primitives ---------- */
+.card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow)}
+.pad{padding:14px 16px}
+.stack{display:flex; flex-direction:column; gap:14px}
+.row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.grid{display:grid; gap:14px}
+@media(min-width:760px){.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}}
+
+.eyebrow{font-size:10.5px; font-weight:700; letter-spacing:.11em; text-transform:uppercase; color:var(--muted)}
+.h-sec{font-size:18px; font-weight:700; letter-spacing:-.01em}
+.sub{color:var(--muted); font-size:12.5px}
+.divider{height:1px; background:var(--line); border:0; margin:0}
+
+.chip{
+  display:inline-flex; align-items:center; gap:5px; border-radius:99px;
+  padding:2px 8px; font-size:11px; font-weight:600; background:var(--sunk); color:var(--ink2);
+  white-space:nowrap;
+}
+.chip.good{background:var(--good-soft); color:var(--good)}
+.chip.warn{background:var(--warn-soft); color:var(--warn)}
+.chip.bad{background:var(--bad-soft); color:var(--bad)}
+.chip.acc{background:var(--accent-soft); color:var(--accent)}
+
+.btn{
+  background:var(--brand); color:var(--on-brand); border:0; border-radius:8px;
+  padding:8px 14px; font-weight:600; font-size:13px; cursor:pointer;
+}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent; color:var(--ink); border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--card2); filter:none}
+.btn:disabled{opacity:.45; cursor:not-allowed}
+.btn.sm{padding:5px 10px; font-size:12px}
+
+input[type=text],input[type=search],input[type=number],select{
+  background:var(--card); border:1px solid var(--line); border-radius:8px;
+  padding:7px 10px; font-size:13px; min-width:0; width:100%;
+}
+
+/* position colouring — encodes role, not decoration */
+.pos{font-size:10.5px; font-weight:700; letter-spacing:.03em; border-radius:4px; padding:1px 5px; display:inline-block; min-width:30px; text-align:center}
+.pos.QB{background:#e8dcf3; color:#5b2f86}
+.pos.RB{background:#d8ecdd; color:#1f6b3d}
+.pos.WR{background:#dbe6f6; color:#23507f}
+.pos.TE{background:#fae0d4; color:#8f4218}
+.pos.K{background:#e6e3dc; color:#5d574a}
+.pos.DST{background:#dfe4e9; color:#3e4a55}
+:root[data-theme="dark"] .pos.QB,:root:not([data-theme="light"]) .pos.QB{background:#33224a; color:#c9a7ea}
+:root[data-theme="dark"] .pos.RB,:root:not([data-theme="light"]) .pos.RB{background:#16371f; color:#7fd39a}
+:root[data-theme="dark"] .pos.WR,:root:not([data-theme="light"]) .pos.WR{background:#1a2c44; color:#90bbef}
+:root[data-theme="dark"] .pos.TE,:root:not([data-theme="light"]) .pos.TE{background:#3d2314; color:#eba777}
+:root[data-theme="dark"] .pos.K,:root:not([data-theme="light"]) .pos.K{background:#2d2a24; color:#bdb5a4}
+:root[data-theme="dark"] .pos.DST,:root:not([data-theme="light"]) .pos.DST{background:#232c33; color:#a5b6c3}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]) .pos.QB{background:#e8dcf3;color:#5b2f86}
+  :root:not([data-theme="dark"]) .pos.RB{background:#d8ecdd;color:#1f6b3d}
+  :root:not([data-theme="dark"]) .pos.WR{background:#dbe6f6;color:#23507f}
+  :root:not([data-theme="dark"]) .pos.TE{background:#fae0d4;color:#8f4218}
+  :root:not([data-theme="dark"]) .pos.K{background:#e6e3dc;color:#5d574a}
+  :root:not([data-theme="dark"]) .pos.DST{background:#dfe4e9;color:#3e4a55}
+}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto; border-radius:var(--r)}
+table{border-collapse:collapse; width:100%; font-size:13px}
+th,td{padding:7px 10px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap}
+th{
+  font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted);
+  font-weight:700; background:var(--card2); position:sticky; top:0; cursor:pointer; user-select:none;
+}
+th.n,td.n{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--card2)}
+tr[data-player],.slot[data-player]{cursor:pointer}
+tr[data-player]:focus-visible,.slot[data-player]:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
+.slot[data-player]:hover{background:var(--card2)}
+td.nm{white-space:normal; min-width:150px; font-weight:600}
+.sortmark{opacity:.5; font-size:9px}
+
+/* ---------- lineup rows ---------- */
+.slot{display:grid; grid-template-columns:46px 1fr auto; gap:10px; align-items:center; padding:9px 12px; border-bottom:1px solid var(--line)}
+.slot:last-child{border-bottom:0}
+.slot.bench{background:var(--card2)}
+.slot-lbl{font-size:10.5px; font-weight:700; letter-spacing:.05em; color:var(--muted); text-transform:uppercase}
+.pname{font-weight:600; display:flex; gap:6px; align-items:center; flex-wrap:wrap; line-height:1.25}
+.pmeta{font-size:11.5px; color:var(--muted)}
+.pproj{font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:15px; text-align:right; font-variant-numeric:tabular-nums}
+
+.move{display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:center; padding:11px 13px; border:1px solid var(--warn); background:var(--warn-soft); border-radius:8px}
+.move .arrow{font-size:16px; color:var(--warn); font-weight:700}
+
+/* ---------- bars & sparks ---------- */
+.bar{height:7px; border-radius:99px; background:var(--sunk); overflow:hidden; min-width:54px}
+.bar>i{display:block; height:100%; background:var(--brand); border-radius:99px}
+.kv{display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px}
+.kv:last-child{border-bottom:0}
+.kv b{font-family:"IBM Plex Mono",monospace; font-weight:600}
+
+.tile{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:12px 14px}
+.tile .big{font-family:"IBM Plex Mono",monospace; font-size:24px; font-weight:600; letter-spacing:-.02em; line-height:1.1}
+.tilerow{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.tilerow .tile{padding:9px 10px}
+.tilerow .big{font-size:19px}
+.tilerow .sub{font-size:10.5px; line-height:1.3}
+.tile .lbl{font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); margin-bottom:4px}
+
+/* ---------- trade ---------- */
+.trade-side{background:var(--card2); border:1px dashed var(--line); border-radius:8px; padding:10px; min-height:96px}
+.tchip{display:flex; justify-content:space-between; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:7px; padding:6px 9px; margin-bottom:6px}
+.tchip button{background:none; border:0; color:var(--muted); cursor:pointer; font-size:15px; line-height:1; padding:0 2px}
+.scale{height:12px; border-radius:99px; background:var(--sunk); position:relative; overflow:hidden}
+.scale>i{position:absolute; top:0; bottom:0; background:var(--brand)}
+.scale>u{position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--ink); left:50%}
+
+/* ---------- misc ---------- */
+.sheet{position:fixed; inset:0; z-index:60; background:rgba(8,18,16,.5); display:flex; align-items:flex-end; justify-content:center}
+@media(min-width:620px){.sheet{align-items:center}}
+.sheet-in{background:var(--card); border-radius:14px 14px 0 0; width:100%; max-width:560px; max-height:88vh; overflow:auto; padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px))}
+@media(min-width:620px){.sheet-in{border-radius:14px}}
+.toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(18px + env(safe-area-inset-bottom,0px)); z-index:70; background:var(--ink); color:var(--paper); padding:9px 15px; border-radius:99px; font-size:13px; font-weight:500; box-shadow:var(--shadow); max-width:88vw}
+/* ---------- matchup ---------- */
+.score{display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:center}
+.score .side{min-width:0}
+.score .nm2{font-weight:700; font-size:13.5px; line-height:1.25; overflow-wrap:anywhere}
+.score .pts{font-family:"IBM Plex Mono",monospace; font-size:30px; font-weight:600;
+  letter-spacing:-.02em; line-height:1.05; font-variant-numeric:tabular-nums}
+.score .vs{font-size:11px; color:var(--muted); font-weight:700; letter-spacing:.08em}
+.wp{display:flex; align-items:baseline; gap:8px}
+.wp b{font-family:"IBM Plex Mono",monospace; font-size:34px; font-weight:600; letter-spacing:-.02em}
+.wpbar{height:12px; border-radius:99px; background:var(--bad-soft); overflow:hidden; position:relative}
+.wpbar>i{display:block; height:100%; background:var(--brand)}
+.mrow{display:grid; grid-template-columns:34px 1fr auto auto; gap:8px; align-items:center;
+  padding:7px 12px; border-bottom:1px solid var(--line); font-size:13px}
+.mrow:last-child{border-bottom:0}
+.mrow .st{font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase}
+.mrow .live{color:var(--good)}
+.mrow .fin{color:var(--muted)}
+.mrow .pre{color:var(--ink2)}
+.mrow .n{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; text-align:right; min-width:44px}
+.lever{display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center;
+  padding:8px 0; border-bottom:1px solid var(--line)}
+.lever:last-child{border-bottom:0}
+/* ---------- filters ---------- */
+.filters{display:flex; flex-direction:column; gap:9px}
+.chips{display:flex; gap:5px; flex-wrap:wrap}
+.fchip{
+  background:var(--card); border:1px solid var(--line); border-radius:99px;
+  padding:4px 11px; font-size:12px; font-weight:600; cursor:pointer; color:var(--ink2);
+}
+.fchip:hover{border-color:var(--brand)}
+.fchip[aria-pressed="true"]{background:var(--brand); border-color:var(--brand); color:var(--on-brand)}
+.fgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:8px}
+.fcount{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
+.ftoggle{display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600;
+  border:1px solid var(--line); border-radius:8px; padding:6px 10px; cursor:pointer;
+  background:var(--card)}
+.ftoggle input{accent-color:var(--brand); margin:0}
+.empty{padding:26px 16px; text-align:center; color:var(--muted); font-size:13px}
+.srcline{font-size:11px; color:var(--muted); line-height:1.6}
+.est{font-size:11px; color:var(--muted); vertical-align:super; margin-left:1px}
+.srcline b{font-family:"IBM Plex Mono",monospace; color:var(--ink2); font-weight:500}
+a{color:var(--brand)}
+.note{border-left:2.5px solid var(--accent); padding:2px 0 2px 11px; font-size:12.5px; color:var(--ink2)}
+.banner{background:var(--accent-soft); border:1px solid var(--accent); border-radius:var(--r); padding:11px 14px; font-size:12.5px; display:flex; gap:10px; align-items:flex-start}
+</style>
+
+<header class="top">
+  <div class="top-in">
+    <div class="mark">
+      <svg width="24" height="27" viewBox="0 0 24 27" aria-hidden="true">
+        <path d="M12 1 22 4.4v9.1c0 6-4.2 10.4-10 12.4C6.2 23.9 2 19.5 2 13.5V4.4L12 1Z"
+              fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        <path d="M8.2 13.6 11 16.4l5.2-5.6" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <b>Sacko Shield</b><br>
+        <span id="leagueLabel">loading league</span>
+      </div>
+    </div>
+    <button class="topbtn" id="btnConnect" type="button">League</button>
+    <button class="topbtn" id="btnTheme" type="button" aria-label="Switch theme">Theme</button>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Sections">
+  <div class="tabs-in" role="tablist" id="tabbar"></div>
+</nav>
+
+<main>
+  <div id="staleBanner"></div>
+  <section id="p-matchup" role="tabpanel" class="stack"></section>
+  <section id="p-week"   role="tabpanel" class="stack" hidden></section>
+  <section id="p-waiver" role="tabpanel" class="stack" hidden></section>
+  <section id="p-trade"  role="tabpanel" class="stack" hidden></section>
+  <section id="p-league" role="tabpanel" class="stack" hidden></section>
+  <section id="p-players" role="tabpanel" class="stack" hidden></section>
+</main>
+
+<script>
+/* ============================================================ Sacko Shield
+   A dynasty / redraft / keeper cockpit for Sleeper and ESPN leagues.
+
+   Data: reference data (values, rankings, production, schedule) ships with
+   the page as JSON. League data comes from a live Sleeper call when the
+   sandbox allows it, otherwise from the copy baked in at publish time.
+   ========================================================================= */
+
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const fmt = (v, d = 1) => (v === null || v === undefined || Number.isNaN(v)) ? "—" : Number(v).toFixed(d);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => (
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+const S = {
+  players: [], byId: new Map(), sched: {}, dvp: {}, byes: {}, picks: [],
+  meta: {}, leagues: [], league: null, live: false, tab: "matchup",
+  kick: null, livePoints: null, canPollLive: false, liveAt: null, liveErr: null,
+  myTeam: null, trade: { a: [], b: [] }, watch: new Set(),
+  /* Live scoring arrives by two independent routes and the fresher one wins.
+     `direct*` is this browser's own call to Sleeper or ESPN — instant when the
+     page is allowed to make it, which the downloaded copy always is and a
+     published artifact is not. `relay` is the same numbers written into the
+     artifact's own data store by a scheduled task, which needs no outbound call
+     from the page at all. See applyLive(). */
+  liveSrc: null, liveTotals: null,
+  directPts: null, directTotals: null, directAt: null, directWeek: null,
+  relay: null, relayErr: null,
+};
+
+/** A league we have rosters for — the tools need them. */
+const hasRosters = lg => !!lg && (lg.status === "full" || lg.status === "manual");
+
+function switchLeague(key) {
+  const lg = S.leagues.find(l => l.key === key);
+  if (!lg) return;
+  S.league = lg;
+  S.myTeam = lg.my_team || (lg.rosters[0] || {}).id || null;
+  S.trade = { a: [], b: [] }; S.tradeSeeded = false;
+  // Scores are per league: drop every cached number, from both routes, before
+  // the new league's first poll lands — showing one league's points against
+  // another's lineup would be worse than showing none.
+  S.livePoints = null; S.liveAt = null; S.liveErr = null; S.liveSrc = null;
+  S.liveTotals = null; S.directPts = null; S.directTotals = null;
+  S.directAt = null; S.directWeek = null; S.relay = null;
+  if (typeof startLive === "function") { clearTimeout(_liveTimer);
+    subscribeRelay(); pollLive().then(scheduleLive); }
+  if (hasRosters(lg)) seedTrade();
+  $("#leagueLabel").textContent = `${lg.platform} · ${lg.name}`;
+  saveState({ leagueKey: key });
+  show(S.tab);
+}
+
+/* ------------------------------------------------------- manual rosters
+   ESPN's roster payload can't be read from claude.ai at all, and whether a
+   browser can read it directly depends on CORS headers this session has no way
+   to test. So the app does not depend on that call succeeding: a roster can be
+   pasted in, and everything downstream — start/sit, the waiver board, the
+   matchup — works from it exactly as it does for Sleeper. */
+
+/* Team nicknames, and ESPN's own pro-team ids. Both are needed to recognise a
+   defense: people paste "Vikings", and ESPN calls it "Vikings D/ST" with a
+   negative player id, while our database keys it "MIN". */
+const TEAM_NICK = {
+  ARI: "cardinals", ATL: "falcons", BAL: "ravens", BUF: "bills",
+  CAR: "panthers", CHI: "bears", CIN: "bengals", CLE: "browns",
+  DAL: "cowboys", DEN: "broncos", DET: "lions", GB: "packers",
+  HOU: "texans", IND: "colts", JAX: "jaguars", KC: "chiefs",
+  LV: "raiders", LAC: "chargers", LAR: "rams", MIA: "dolphins",
+  MIN: "vikings", NE: "patriots", NO: "saints", NYG: "giants",
+  NYJ: "jets", PHI: "eagles", PIT: "steelers", SEA: "seahawks",
+  SF: "49ers", TB: "buccaneers", TEN: "titans", WAS: "commanders",
+};
+const ESPN_PRO_TEAM = {
+  1: "ATL", 2: "BUF", 3: "CHI", 4: "CIN", 5: "CLE", 6: "DAL", 7: "DEN",
+  8: "DET", 9: "GB", 10: "TEN", 11: "IND", 12: "KC", 13: "LV", 14: "LAR",
+  15: "MIA", 16: "MIN", 17: "NE", 18: "NO", 19: "NYG", 20: "NYJ", 21: "PHI",
+  22: "ARI", 23: "PIT", 24: "LAC", 25: "SF", 26: "SEA", 27: "TB", 28: "WAS",
+  29: "CAR", 30: "JAX", 33: "BAL", 34: "HOU",
+};
+
+let _nameIndex = null;
+/** Every player keyed by the forms someone might paste. */
+function nameIndex() {
+  if (_nameIndex) return _nameIndex;
+  const NICK = TEAM_NICK;
+  const idx = [];
+  for (const p of S.players) {
+    if (p.pos === "DST") {
+      const nick = NICK[p.team];
+      if (nick) idx.push({ key: nick, p });
+      idx.push({ key: nameKey(p.team + " dst"), p });
+      idx.push({ key: nameKey(p.team + " d st"), p });
+    } else if (p.key && p.key.includes(" ")) {
+      idx.push({ key: p.key, p });
+    }
+  }
+  // longest first, so "amon ra st brown" wins over any shorter overlap
+  idx.sort((a, b) => b.key.length - a.key.length);
+  _nameIndex = idx;
+  return idx;
+}
+
+/**
+ * Pull known players out of whatever someone pasted.
+ * ESPN's roster page copies as a jumble of slot labels, names and team
+ * abbreviations, and it differs between the app and the site — so rather than
+ * parse a format, this scans for names it recognises and keeps them in the
+ * order they appear.
+ */
+function parseRosterText(text) {
+  // Collapse every separator to a single space BEFORE normalising. nameKey
+  // strips anything that isn't a letter or space, so a raw newline would be
+  // deleted rather than separated — gluing "Bench" onto the next name and
+  // losing every player that followed a heading.
+  const flat = String(text || "").replace(/[\s\/,|\-\u2013\u2014()\[\]]+/g, " ");
+  const hay = " " + nameKey(flat) + " ";
+  const seen = new Set(), hits = [];
+  let masked = hay;
+  for (const { key, p } of nameIndex()) {
+    if (seen.has(p.id)) continue;
+    const at = masked.indexOf(" " + key + " ");
+    if (at === -1) continue;
+    seen.add(p.id);
+    hits.push({ at, p });
+    // blank the match so a shorter name can't claim the same characters
+    masked = masked.slice(0, at + 1) + "\u0000".repeat(key.length)
+           + masked.slice(at + 1 + key.length);
+  }
+  hits.sort((a, b) => a.at - b.at);
+  return hits.map(h => h.p);
+}
+
+/**
+ * Persisted manual rosters, keyed league → roster id → player ids.
+ *
+ * A paste used to win unconditionally, which is a trap: once a league had been
+ * pasted into, that copy was pinned in browser storage AND in the artifact's
+ * own store, and every later data fix was silently discarded on load. A roster
+ * pasted before a D/ST could be read kept the D/ST slot empty forever, through
+ * repeated fixes that were all working correctly underneath it.
+ *
+ * So a paste only outranks the shipped rosters when it is NEWER than the data
+ * build. An older paste for a league that now ships real rosters is set aside —
+ * not deleted, and the banner offers to put it back.
+ */
+function applyManual(store) {
+  const map = (store && store.map) ? store.map : store;   // legacy: a bare map
+  if (!map) return;
+  const savedAt = (store && store.savedAt) ? Date.parse(store.savedAt) : NaN;
+  const built = S.meta && S.meta.built ? Date.parse(S.meta.built) : NaN;
+  const fresher = !(built > 0) || (savedAt > 0 && savedAt > built);
+
+  S.manualSetAside = [];
+  for (const lg of S.leagues) {
+    const forLeague = map[lg.key];
+    if (!forLeague) continue;
+    // An opponent pick is stamped with its week and only ever used in that week,
+    // so it needs no freshness gate — and it is not a roster. Picking one used
+    // to save every roster alongside it, which then reloaded as a "paste" and put
+    // a banner on screen claiming a roster had been pasted when none had.
+    if (forLeague.__opponent) {
+      lg.manual_opponent = forLeague.__opponent;
+      // a pick saved before picks were week-stamped belongs to no week
+      lg.manual_opponent_week = forLeague.__opponentWeek ?? null;
+    }
+    const pasted = Object.keys(forLeague).filter(k => !k.startsWith("__")
+      && Array.isArray(forLeague[k]) && forLeague[k].length);
+    if (!pasted.length) continue;
+    if (lg.status === "full" && !fresher) {
+      // shipped rosters are newer than this paste — keep them
+      lg.manual_available = true;
+      S.manualSetAside.push(lg.name);
+      continue;
+    }
+    let any = false;
+    for (const r of lg.rosters) {
+      const ids = forLeague[r.id];
+      if (Array.isArray(ids) && ids.length) { r.players = ids; r.starters = []; any = true; }
+    }
+    if (any) {
+      lg.manual_applied = true;
+      if (lg.status !== "full") { lg.status = "manual"; lg.manual = true; }
+    }
+  }
+}
+
+/** Put a league back on the rosters it shipped with. */
+function useShippedRoster(key) {
+  const lg = S.leagues.find(l => l.key === key);
+  if (!lg || !lg._shipped) return;
+  for (const r of lg.rosters) {
+    const ids = lg._shipped[r.id];
+    if (ids) { r.players = ids.slice(); r.starters = []; }
+  }
+  lg.manual = false; lg.manual_applied = false; lg.manual_available = true;
+  saveManual(manualMap());
+  show(S.tab);
+  toast(`${lg.name} is back on the rosters read from ${lg.platform}`);
+}
+
+/** Says plainly which roster the tools are working from, and offers the other. */
+function rosterSourceBanner() {
+  const lg = S.league;
+  if (!lg) return "";
+  if (lg.manual_applied && lg._shipped)
+    return `<div class="banner"><div>Working from the roster you pasted in, not the
+      one read from ${esc(lg.platform)}. If something looks missing — a defense or a
+      kicker, say — it is missing from the paste.
+      <div class="row" style="margin-top:7px">
+        <button class="btn sm" data-shipped="${esc(lg.key)}">Use ${esc(lg.platform)}'s roster</button>
+        <button class="btn ghost sm" data-roster="${esc(lg.my_team || "")}">Edit the paste</button>
+      </div></div></div>`;
+  if (lg.manual_available)
+    return `<div class="note">Working from rosters read from ${esc(lg.platform)}. A
+      roster you pasted in earlier was set aside because this data is newer —
+      <button class="btn ghost sm" data-roster="${esc(lg.my_team || "")}">edit it</button>
+      to bring it back.</div>`;
+  return "";
+}
+
+function manualMap() {
+  const map = {};
+  for (const lg of S.leagues) {
+    if (!lg.manual) continue;
+    const entry = {};
+    for (const r of lg.rosters) {
+      if (!r.players || !r.players.length) continue;
+      // Only what the viewer actually changed. A roster identical to the one
+      // shipped is not a paste, and saving it as one is how picking an opponent
+      // used to masquerade as pasting a roster.
+      const shipped = lg._shipped && lg._shipped[r.id];
+      if (shipped && shipped.length === r.players.length
+          && shipped.every((x, i) => x === r.players[i])) continue;
+      entry[r.id] = r.players;
+    }
+    if (lg.manual_opponent) {
+      entry.__opponent = lg.manual_opponent;
+      entry.__opponentWeek = lg.manual_opponent_week ?? null;
+    }
+    if (Object.keys(entry).length) map[lg.key] = entry;
+  }
+  return map;
+}
+
+/** The editor. Paste a roster, or search players in one at a time. */
+function openRosterEditor(rosterId) {
+  const lg = S.league;
+  const roster = lg.rosters.find(r => r.id === rosterId) || me();
+  let ids = (roster.players || []).slice();
+
+  const el = document.createElement("div");
+  el.className = "sheet";
+  const draw = () => {
+    const players = ids.map(i => S.byId.get(i)).filter(Boolean);
+    const byPos = {};
+    players.forEach(p => { (byPos[p.pos] = byPos[p.pos] || []).push(p); });
+    const need = gradedPositions(lg).filter(pos => !(byPos[pos] || []).length);
+    el.innerHTML = `<div class="sheet-in stack" role="dialog" aria-modal="true"
+        aria-label="Edit roster">
+      <div class="row" style="justify-content:space-between">
+        <div><span class="eyebrow">${esc(lg.name)}</span>
+          <h2 class="h-sec">${esc(roster.name)}</h2></div>
+        <button class="btn ghost sm" data-close>Close</button>
+      </div>
+
+      <div class="stack" style="gap:7px">
+        <span class="eyebrow">Paste your roster</span>
+        <textarea id="pasteBox" rows="4" placeholder="Copy your roster from ESPN and paste it here — any format."
+          style="width:100%; background:var(--card); border:1px solid var(--line);
+                 border-radius:8px; padding:9px 10px; font:inherit; font-size:13px;
+                 resize:vertical"></textarea>
+        <div class="row"><button class="btn" id="pasteGo">Read it</button>
+          <span class="sub" id="pasteMsg">Names are matched against ${
+            S.players.length} players — slot labels and team codes are ignored.</span></div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="stack" style="gap:7px">
+        <span class="eyebrow">Or add one at a time</span>
+        <input type="search" id="addSearch" placeholder="Search players…"
+          aria-label="Search players to add">
+        <div id="addResults"></div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="stack" style="gap:6px">
+        <div class="row" style="justify-content:space-between">
+          <span class="eyebrow">${players.length} player${players.length === 1 ? "" : "s"}</span>
+          ${players.length ? `<button class="btn ghost sm" id="clearRoster">Clear all</button>` : ""}
+        </div>
+        ${need.length ? `<div class="note">Nothing at ${need.join(", ")} yet — this
+          league starts ${gradedPositions(lg).join(", ")}.</div>` : ""}
+        ${["QB","RB","WR","TE","K","DST"].filter(pos => (byPos[pos] || []).length)
+          .map(pos => `<div>
+            <div class="eyebrow" style="margin:6px 0 3px">${pos}</div>
+            ${byPos[pos].map(p => `<div class="tchip">
+              <span>${nameCell(p)} <span class="sub mono">${esc(p.team)}</span></span>
+              <button data-rm="${esc(p.id)}" aria-label="Remove ${esc(p.name)}">×</button>
+            </div>`).join("")}</div>`).join("")
+          || `<div class="sub">No players yet.</div>`}
+      </div>
+
+      <div class="row"><button class="btn" id="saveRoster"
+        ${players.length ? "" : "disabled"}>Save roster</button></div>
+    </div>`;
+
+    $("[data-close]", el).addEventListener("click", () => el.remove());
+    $("#pasteGo", el).addEventListener("click", () => {
+      const txt = $("#pasteBox", el).value;
+      const found = parseRosterText(txt);
+      if (!found.length) {
+        $("#pasteMsg", el).innerHTML = `<span class="chip bad">No names matched</span>
+          Try copying the roster list itself rather than a screenshot or a link.`;
+        return;
+      }
+      const before = ids.length;
+      for (const p of found) if (!ids.includes(p.id)) ids.push(p.id);
+      draw();
+      $("#pasteMsg", el).innerHTML = `<span class="chip good">Matched ${found.length}</span>
+        ${ids.length - before} added.`;
+    });
+    $("#clearRoster", el)?.addEventListener("click", () => { ids = []; draw(); });
+    $$("[data-rm]", el).forEach(btn => btn.addEventListener("click", () => {
+      ids = ids.filter(x => x !== btn.dataset.rm); draw();
+    }));
+    const search = $("#addSearch", el);
+    search.addEventListener("input", () => {
+      const q = search.value.trim().toLowerCase();
+      const box = $("#addResults", el);
+      if (q.length < 2) { box.innerHTML = ""; return; }
+      const hits = S.players.filter(p => p.name.toLowerCase().includes(q)
+        && !ids.includes(p.id)).sort((a, b) => (pj(b) || 0) - (pj(a) || 0)).slice(0, 8);
+      box.innerHTML = hits.length ? `<div class="card" style="margin-top:6px">${hits.map(p =>
+        `<button class="btn ghost sm" data-add="${esc(p.id)}"
+          style="display:block; width:100%; text-align:left; border:0;
+                 border-bottom:1px solid var(--line); border-radius:0">
+          <span class="pos ${p.pos}">${p.pos}</span> ${esc(p.name)}
+          <span class="sub">${esc(p.team)}</span></button>`).join("")}</div>`
+        : `<div class="sub" style="padding:6px 2px">no match</div>`;
+      $$("[data-add]", box).forEach(btn => btn.addEventListener("click", () => {
+        ids.push(btn.dataset.add); draw();
+        const again = $("#addSearch", el); if (again) again.focus();
+      }));
+    });
+    $("#saveRoster", el).addEventListener("click", () => {
+      roster.players = ids.slice();
+      roster.starters = [];
+      lg.manual = true;
+      if (lg.status !== "full") lg.status = "manual";
+      saveManual(manualMap());
+      el.remove();
+      show(S.tab);
+      toast(`Saved ${ids.length} players to ${roster.name}`);
+    });
+  };
+
+  document.body.appendChild(el);
+  el.addEventListener("click", e => { if (e.target === el) el.remove(); });
+  draw();
+}
+
+/** In-page retry from the "no rosters" card, without opening the sheet. */
+async function loadEspnInline(btn, leagueId) {
+  const was = btn.textContent;
+  btn.disabled = true; btn.textContent = "Contacting ESPN…";
+  try {
+    let lgNew = await tryEspn(leagueId, S.meta.season);
+    const prior = S.leagues.find(l => l.key === lgNew.key);
+    lgNew = mergeLeague(prior, lgNew);
+    if (prior && prior.my_team) {
+      const oldTeam = prior.rosters.find(r => r.id === prior.my_team);
+      const now = lgNew.rosters.find(r => r.id === prior.my_team)
+        || lgNew.rosters.find(r => r.name === (oldTeam || {}).name);
+      if (now) lgNew.my_team = now.id;
+    }
+    if (!lgNew.my_team && lgNew.rosters.length) lgNew.my_team = lgNew.rosters[0].id;
+    S.leagues = [...S.leagues.filter(l => l.key !== lgNew.key), lgNew];
+    saveConnected(lgNew);
+    switchLeague(lgNew.key);
+    toast(lgNew.status === "full"
+      ? `Loaded ${lgNew.rosters.length} rosters from ESPN`
+      : "ESPN gave standings but no rosters");
+  } catch (err) {
+    btn.disabled = false; btn.textContent = was;
+    toast(String(err.message || err));
+  }
+}
+
+/**
+ * Carry forward anything a live fetch can't supply.
+ *
+ * A refresh used to replace the league object wholesale, which quietly took
+ * `scoring_settings` with it — so a league paying 6 per passing touchdown
+ * reverted to the default 4 with nothing on screen to say so. Losing the
+ * head-to-head pairings was the visible half of the same bug.
+ */
+function mergeLeague(prev, fresh) {
+  if (!prev) return fresh;
+  const out = Object.assign({}, fresh);
+  for (const k of ["scoring_settings", "scoring_partial", "note", "platform",
+                   "type", "season"]) {
+    if (out[k] == null && prev[k] != null) out[k] = prev[k];
+  }
+  // Matchups are week-specific: keep the old ones only when they still cover
+  // the week being shown, because a stale pairing is worse than none.
+  const wk = String(S.meta.upcoming_week);
+  if ((!out.matchups || !out.matchups[wk]) && prev.matchups && prev.matchups[wk]) {
+    out.matchups = Object.assign({}, out.matchups || {});
+    out.matchups[wk] = prev.matchups[wk];
+  }
+  return out;
+}
+
+/** Shown in place of a tool that has nothing to work with. */
+function noRosters(what) {
+  const lg = S.league;
+  return `<div class="card pad stack">
+    <div><span class="eyebrow">${esc(lg.platform)} · ${esc(lg.name)}</span>
+      <div class="h-sec">${esc(what)} needs this league's rosters</div></div>
+    <div class="note">${esc(lg.note || "Rosters for this league aren't loaded.")}</div>
+    <div class="sub">Paste your roster in and everything here starts working — copy it
+      from ESPN in any format and the names get matched for you. Loading from ESPN
+      directly may also work depending on your browser, but the paste always does.</div>
+    <div class="row">
+      <button class="btn sm" data-roster="${esc(lg.my_team || "")}">Add my roster</button>
+      ${lg.source === "espn"
+        ? `<button class="btn ghost sm" data-espn="${esc(lg.league_id)}">Try loading from ESPN</button>`
+        : ""}
+      <button class="btn ghost sm" data-goto="league">See the standings</button>
+      ${S.leagues.filter(hasRosters).map(l =>
+        `<button class="btn sm" data-league="${esc(l.key)}">Open ${esc(l.name)}</button>`).join("")}
+    </div>
+  </div>`;
+}
+
+let DB = null, DOWNLOADS = null, USER_ID = null;
+
+/* ------------------------------------------------------------ league shape */
+const SLOTS = {
+  QB:["QB"], RB:["RB"], WR:["WR"], TE:["TE"], K:["K"], DEF:["DST"],
+  FLEX:["RB","WR","TE"], WRRB_FLEX:["RB","WR"], REC_FLEX:["WR","TE"],
+  SUPER_FLEX:["QB","RB","WR","TE"], IDP_FLEX:[], BN:[], TAXI:[], IR:[],
+};
+const startingSlots = lg => (lg.roster_positions || [])
+  .filter(s => !["BN","TAXI","IR"].includes(s));
+const isSuperflex = lg => startingSlots(lg).some(s => s === "SUPER_FLEX" || s === "QB_FLEX")
+  || startingSlots(lg).filter(s => s === "QB").length > 1;
+
+/* value column the league actually plays under */
+const scoringLabel = sc => sc === "half" ? "half PPR"
+  : sc === "unknown" ? "scoring unknown" : String(sc).toUpperCase();
+
+/* ------------------------------------------------------- format isolation
+   A dynasty value and a redraft value answer different questions. Dynasty asks
+   what a player is worth to own for years; redraft asks what he will score
+   between now and the end of this season. Mixing them is how a win-now team
+   trades away its season for a rookie pick, or a dynasty team sells a
+   22-year-old for a rental.
+
+   So a redraft league never sees a dynasty number, and a dynasty league never
+   prices an asset off one week's matchup. `val()` returns whichever basis the
+   active league is actually playing under. */
+const isDynasty = lg => !!lg && (lg.type === "dynasty" || lg.type === "keeper");
+
+/** Weeks left in the regular season for this player, his bye removed. */
+function weeksLeft(p) {
+  const first = S.meta.upcoming_week || 1;
+  const last = S.meta.last_week || 18;
+  let n = Math.max(0, last - first + 1);
+  if (p && p.bye && p.bye >= first && p.bye <= last) n -= 1;
+  return n;
+}
+
+/* Rest-of-season consensus rank within a position. League-independent, so it
+   is built once. */
+let _rosRank = null;
+function rosRank(p) {
+  if (!_rosRank) {
+    _rosRank = new Map();
+    for (const pos of ["QB", "RB", "WR", "TE", "K", "DST"]) {
+      S.players.filter(x => x.pos === pos && x.ecr_ros != null)
+        .sort((a, b) => a.ecr_ros - b.ecr_ros)
+        .forEach((x, i) => _rosRank.set(x.id, i + 1));
+    }
+  }
+  return _rosRank.has(p.id) ? _rosRank.get(p.id) : null;
+}
+
+/* Points-per-game by positional rank, in THIS league's points. Rebuilt when
+   the league changes, because the scoring underneath it changes. */
+let _curve = null, _curveKey = null;
+function rosCurve() {
+  const lg = S.league;
+  const key = lg ? lg.key : "none";
+  if (_curveKey === key && _curve) return _curve;
+  const out = {};
+  for (const pos of ["QB", "RB", "WR", "TE", "K", "DST"]) {
+    out[pos] = S.players.filter(p => p.pos === pos && pj(p) != null)
+      .map(pj).sort((a, b) => b - a);
+  }
+  _curveKey = key; _curve = out;
+  return out;
+}
+
+/** What he is expected to average from here, in this league's points. */
+function rosPPG(p) {
+  if (!p) return null;
+  const curve = rosCurve()[p.pos];
+  const rank = rosRank(p);
+  if (!curve || !curve.length) return pj(p);
+  if (rank == null) return pj(p);
+  return curve[Math.min(rank, curve.length) - 1];
+}
+
+/** The redraft equivalent of a dynasty value: points above replacement over
+    the games this player has left. */
+function rosValue(p) {
+  const ppg = rosPPG(p), repl = replacement()[p.pos];
+  if (ppg == null || repl == null) return null;
+  return Math.max(0, Math.round((ppg - repl) * weeksLeft(p) * 10) / 10);
+}
+
+const val = p => !p ? null
+  : isDynasty(S.league)
+    ? ((isSuperflex(S.league) ? p.v_sf : p.v_1qb) ?? null)
+    : rosValue(p);
+
+const valueLabel = () => isDynasty(S.league)
+  ? (isSuperflex(S.league) ? "dynasty value, superflex" : "dynasty value, 1QB")
+  : "rest-of-season points over replacement";
+const valueShort = () => isDynasty(S.league) ? "value" : "ROS pts";
+/* The two bases live on different scales, so anything that normalises a value
+   into a 0–1 term needs the right ceiling. */
+const valueScale = () => isDynasty(S.league) ? 4000 : 90;
+
+/* ------------------------------------------------------------ scoring
+   A projection expressed as points is only true under the scoring that made
+   it. Public projections assume 4 per passing touchdown and 0.04 per yard;
+   this league pays 6 and 0.05, which is worth five to seven points a week to
+   every starting quarterback. So the stored projection is a STAT LINE and the
+   points are computed here, against whatever the league actually pays.
+
+   Stat keys use Sleeper's scoring_settings names, so the two multiply directly. */
+
+/* What a league pays when nothing says otherwise. ESPN only surfaces its
+   reception value without mSettings, so a partial table has to sit ON TOP of
+   these rather than replace them — scoring a stat line against {rec: 0.5}
+   alone values a quarterback at zero. */
+const DEFAULT_SCORING = {
+  pass_yd: 0.04, pass_td: 4, pass_int: -2, pass_2pt: 2,
+  rush_yd: 0.1, rush_td: 6, rush_2pt: 2,
+  rec: 1, rec_yd: 0.1, rec_td: 6, rec_2pt: 2,
+  fum_lost: -2, fum_rec_td: 6,
+  sack: 1, int: 2, fum_rec: 2, safe: 2, def_td: 6, blk_kick: 2,
+  // kickers: the common default is 3 inside 40, 4 from the forties, 5 beyond
+  fgm: 0, fgm_0_19: 3, fgm_20_29: 3, fgm_30_39: 3, fgm_40_49: 4, fgm_50p: 5,
+  fgmiss: -1, xpm: 1, xpmiss: -1,
+  pts_allow_0: 10, pts_allow_1_6: 7, pts_allow_7_13: 4, pts_allow_14_20: 1,
+  pts_allow_21_27: 0, pts_allow_28_34: -1, pts_allow_35p: -4,
+};
+
+let _scCache = null, _scKey = null;
+function scoringOf(lg) {
+  if (!lg) return null;
+  const key = lg.key + ":" + (lg.scoring_settings ? "s" : "n");
+  if (_scKey === key && _scCache) return _scCache;
+  const own = lg.scoring_settings;
+  _scCache = own
+    ? (lg.scoring_partial ? { ...DEFAULT_SCORING, ...own } : own)
+    : { ...DEFAULT_SCORING };
+  _scKey = key;
+  return _scCache;
+}
+
+/** Multiply a stat line by a scoring table. Unknown keys score nothing. */
+function scoreLine(stats, sc) {
+  if (!stats || !sc) return null;
+  let total = 0;
+  for (const k in stats) {
+    const mult = sc[k];
+    if (typeof mult === "number") total += stats[k] * mult;
+  }
+  return total;
+}
+
+/* A defense's points-allowed tier, under this league's own tier values. */
+const PA_BANDS = [
+  [0, 0, "pts_allow_0"], [1, 6, "pts_allow_1_6"], [7, 13, "pts_allow_7_13"],
+  [14, 20, "pts_allow_14_20"], [21, 27, "pts_allow_21_27"],
+  [28, 34, "pts_allow_28_34"], [35, 999, "pts_allow_35p"],
+];
+const paPoints = (pa, sc) => {
+  for (const [lo, hi, key] of PA_BANDS)
+    if (pa >= lo && pa <= hi) return sc && sc[key] != null ? sc[key] : 0;
+  return 0;
+};
+const erf = x => {                       // Abramowitz & Stegun 7.1.26
+  const s = x < 0 ? -1 : 1; x = Math.abs(x);
+  const t = 1 / (1 + 0.3275911 * x);
+  const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t
+    - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return s * y;
+};
+/** Expected tier points across the distribution of plausible final scores. */
+function expectedPaPoints(mu, sc, sd) {
+  sd = sd || 9.5;
+  let total = 0;
+  for (const [lo, hi, key] of PA_BANDS) {
+    const v = sc && sc[key] != null ? sc[key] : 0;
+    const zl = (lo - 0.5 - mu) / sd, zh = (hi + 0.5 - mu) / sd;
+    total += 0.5 * (erf(zh / Math.SQRT2) - erf(zl / Math.SQRT2)) * v;
+  }
+  return total;
+}
+
+/** This week's projection, in this league's points. */
+function pj(p) {
+  if (!p) return null;
+  const sc = scoringOf(S.league);
+
+  if (p.pos === "DST") {
+    if (!sc || !p.dst_ctx) return p.proj ?? null;
+    const c = p.dst_ctx;
+    return Math.round((
+      expectedPaPoints(c.opp_implied, sc)
+      + c.sack_rate * (sc.sack ?? 1)
+      + c.ta_rate * (((sc.int ?? 2) + (sc.fum_rec ?? 2)) / 2)
+      + 0.06 * (sc.def_td ?? 6)
+      + 0.35) * 100) / 100;
+  }
+
+  if (p.pstats && sc) {
+    const v = scoreLine(p.pstats, sc);
+    if (v != null) return Math.round(v * 100) / 100;
+  }
+
+  // No stat line for this player: fall back to the shipped PPR number, with
+  // the reception premium backed out if the league pays less than a point.
+  if (p.proj == null) return null;
+  const rec = sc && typeof sc.rec === "number" ? sc.rec : 1;
+  const perGameRec = (p.pos === "DST" || p.pos === "K") ? 0
+    : (p.g ? (p.rec || 0) / p.g : 0);
+  return Math.max(0, p.proj - (1 - rec) * perGameRec);
+}
+
+/** Whether this player's number came from a real stat line or a fallback.
+
+   A stat line built by our own model counts as a fallback even though it scores
+   through the same path. Both are multiplied by this league's scoring — that is
+   the point of storing lines rather than points, and it holds however the line
+   was made — but only a projection feed's line is a projection. A model estimate
+   keeps its ~ so the two are never read as the same thing. */
+const projExact = p => !!(p && scoringOf(S.league)
+  && ((p.pstats && p.pstats_src !== "model")
+   || (p.pos === "DST" && p.dst_ctx)));
+
+/** Season production, restated in this league's points. */
+function seasonPts(p) {
+  const sc = scoringOf(S.league);
+  if (p && p.sstats && sc) {
+    const v = scoreLine(p.sstats, sc);
+    if (v != null) {
+      let total = v;
+      if (p.pos === "DST" && p.pa_log)
+        total += p.pa_log.reduce((a, pa) => a + paPoints(pa, sc), 0);
+      return Math.round(total * 100) / 100;
+    }
+  }
+  return p && p.pts != null ? p.pts : null;
+}
+const seasonPPG = p => {
+  const t = seasonPts(p);
+  return (t == null || !p.g) ? null : Math.round(t / p.g * 100) / 100;
+};
+
+/* Replacement level, recomputed per league: the last player at each position
+   who would actually be starting somewhere in a league this size and shape. */
+let _replCache = null, _replKey = null;
+function replacement() {
+  const lg = S.league;
+  const key = lg ? `${lg.key}:${lg.scoring}:${lg.teams}` : "none";
+  if (_replKey === key && _replCache) return _replCache;
+  const slots = startingSlots(lg || { roster_positions: [] });
+  const n = s => slots.filter(x => x === s).length;
+  const flex = slots.filter(s => ["FLEX", "WRRB_FLEX", "REC_FLEX"].includes(s)).length;
+  const teams = (lg && lg.teams) || 12;
+  const depth = {
+    QB: (n("QB") + n("SUPER_FLEX") * 0.8) * teams,
+    RB: (n("RB") + flex * 0.45) * teams,
+    WR: (n("WR") + flex * 0.45) * teams,
+    TE: (n("TE") + flex * 0.10) * teams,
+    K: n("K") * teams, DST: n("DEF") * teams,
+  };
+  const out = {};
+  for (const pos of Object.keys(depth)) {
+    const vals = S.players.filter(p => p.pos === pos && pj(p) != null)
+      .map(pj).sort((a, b) => b - a);
+    const idx = Math.max(1, Math.round(depth[pos]));
+    out[pos] = vals.length ? (vals[Math.min(idx, vals.length) - 1] || 0) : 0;
+  }
+  _replKey = key; _replCache = out;
+  return out;
+}
+
+/* Points over expected, restated for this league's scoring. POE ships as PPR,
+   so a half-PPR league gives back half a point for every catch above or below
+   the expected reception count. */
+/* POE is computed in PPR upstream. Restate it by the gap between what this
+   league pays for a catch and the one point PPR assumes — the rest of the
+   scoring cancels, since both sides of the subtraction use the same rates. */
+const recRate = () => {
+  const sc = scoringOf(S.league);
+  return sc && typeof sc.rec === "number" ? sc.rec : 1;
+};
+function poeOf(p, perGame) {
+  if (!p || p.poe == null) return null;
+  const d = 1 - recRate();
+  const adj = p.poe - d * ((p.rec || 0) - (p.x_rec || 0));
+  return perGame ? (p.g ? adj / p.g : null) : adj;
+}
+const xfpOf = p => p && p.xfp != null
+  ? p.xfp - (1 - recRate()) * (p.x_rec || 0) : null;
+const actualOf = p => {
+  const v = seasonPts(p);
+  return v != null ? v : null;
+};
+
+const parOf = p => {
+  const v = pj(p), r = replacement()[p.pos];
+  return (v == null || r == null) ? null : Math.round((v - r) * 100) / 100;
+};
+
+/* ---------------------------------------------------------- lineup solving */
+function optimalLineup(ids, lg) {
+  const slots = startingSlots(lg);
+  const pool = ids.map(i => S.byId.get(i)).filter(Boolean)
+                  .filter(p => (pj(p) ?? 0) > 0);
+  // Most restrictive slot first, then a local-search pass to fix greedy misses.
+  const order = slots.map((s, i) => ({ s, i, n: (SLOTS[s] || []).length || 99 }))
+                     .sort((a, b) => a.n - b.n);
+  const used = new Set(), out = new Array(slots.length).fill(null);
+  for (const { s, i } of order) {
+    const ok = SLOTS[s] || [];
+    let best = null;
+    for (const p of pool) {
+      if (used.has(p.id) || !ok.includes(p.pos)) continue;
+      if (!best || pj(p) > pj(best)) best = p;
+    }
+    if (best) { used.add(best.id); out[i] = best; }
+  }
+  // improvement: try swapping each bench player into each slot
+  let improved = true, guard = 0;
+  while (improved && guard++ < 6) {
+    improved = false;
+    const bench = pool.filter(p => !used.has(p.id));
+    for (let i = 0; i < slots.length; i++) {
+      const ok = SLOTS[slots[i]] || [];
+      const cur = out[i];
+      for (const b of bench) {
+        if (!ok.includes(b.pos)) continue;
+        if (!cur || pj(b) > pj(cur)) {
+          if (cur) used.delete(cur.id);
+          used.add(b.id); out[i] = b; improved = true; break;
+        }
+      }
+      if (improved) break;
+    }
+  }
+  const total = out.reduce((a, p) => a + (pj(p) || 0), 0);
+  return { slots, lineup: out, total, bench: pool.filter(p => !used.has(p.id)) };
+}
+
+const teamTotal = (ids, lg) => optimalLineup(ids, lg).total;
+
+/* ------------------------------------------------------------ waiver score */
+/* A defense has no targets, snap share or dynasty value, so the skill-position
+   formula scores every one of them near zero. Stream value is a different
+   question — how good is this week, and is he gettable — so it gets its own. */
+function dstScore(p) {
+  const par = parOf(p);
+  const v = par != null ? Math.min(1, Math.max(0, (par + 3) / 7)) : 0.3;
+  const form = seasonPPG(p) != null ? Math.min(1, Math.max(0, seasonPPG(p) / 14)) : 0.3;
+  const scarce = p.own != null ? Math.max(0, 1 - p.own / 70) : 0.6;
+  const matchup = p.dst_ctx
+    ? Math.min(1, Math.max(0, (27 - p.dst_ctx.opp_implied) / 12)) : 0.4;
+  return Math.round((0.36 * v + 0.30 * matchup + 0.20 * form + 0.14 * scarce) * 100);
+}
+
+function waiverScore(p) {
+  if (p.pos === "DST" || p.pos === "K") return dstScore(p);
+  // Each term is 0–1; weights say what actually wins a waiver claim.
+  // Value is points ABOVE REPLACEMENT at the player's own position — a raw
+  // rank can't compare a TE to a WR, because the pools are different sizes.
+  const pv = parOf(p);
+  const par    = pv != null ? Math.min(1, Math.max(0, (pv + 4) / 12)) : 0.15;
+  const snap   = p.snap_last != null ? Math.min(1, p.snap_last / 85) : 0.25;
+  const trend  = (p.snap_last != null && p.snap != null)
+                 ? Math.min(1, Math.max(0, 0.5 + (p.snap_last - p.snap) / 40)) : 0.5;
+  const usage  = p.tgt_share != null ? Math.min(1, p.tgt_share / 25)
+               : (p.car ? Math.min(1, p.car / (p.g || 1) / 16) : 0.2);
+  const prod   = seasonPPG(p) != null ? Math.min(1, seasonPPG(p) / 16) : 0.15;
+  const scarce = p.own != null ? Math.max(0, 1 - p.own / 70) : 0.6;  // still gettable
+  const dyn    = val(p) ? Math.min(1, val(p) / valueScale()) : 0;
+  const s = 0.30*par + 0.14*snap + 0.12*trend + 0.13*usage
+          + 0.11*prod + 0.10*scarce + 0.10*dyn;
+  // Someone who can't play this week isn't a waiver priority, however good he
+  // is — in a dynasty league he's a stash, which is what the low score says.
+  const avail = !p.opp ? 0.55 : p.inj === "Out" ? 0.6 : p.inj === "Doubtful" ? 0.75 : 1;
+  return Math.round(s * 100 * avail);
+}
+/** Enough signal to be worth a row at all. */
+const waiverWorthy = p =>
+  ((p.pos === "DST" || p.pos === "K")
+    && gradedPositions(S.league || {}).includes(p.pos)) ||
+  (pj(p) ?? 0) > 1 || (seasonPPG(p) ?? 0) > 2 || (p.snap_last ?? 0) > 20 || (val(p) ?? 0) > valueScale() / 10;
+
+const faabPct = (s, p) => {
+  const bid = s >= 78 ? "25–40%" : s >= 66 ? "12–22%" : s >= 54 ? "5–10%"
+            : s >= 42 ? "2–4%" : s >= 30 ? "1–2%" : "$0–1 / last claim";
+  // Don't recommend a real bid on someone below the startable line.
+  if ((parOf(p) ?? 0) < 0 && s >= 54) return "2–5%";
+  return bid;
+};
+
+/* --------------------------------------------------------- roster analysis */
+/* Which positions this league actually starts — no point grading a roster at
+   a spot its lineup has no slot for. */
+function gradedPositions(lg) {
+  const slots = startingSlots(lg);
+  const out = [];
+  for (const pos of ["QB", "RB", "WR", "TE", "K", "DST"]) {
+    const slot = pos === "DST" ? "DEF" : pos;
+    const flex = ["FLEX", "WRRB_FLEX", "REC_FLEX", "SUPER_FLEX"]
+      .some(fx => slots.includes(fx) && (SLOTS[fx] || []).includes(pos));
+    if (slots.includes(slot) || flex) out.push(pos);
+  }
+  return out;
+}
+
+/* Kickers and defenses carry no dynasty value — they're streamed, not owned —
+   so grade them on what they'll score instead. Needs are percentiles within a
+   position, so the two scales never meet and don't need to agree. */
+const assetScore = p => !p ? 0
+  : (p.pos === "DST" || p.pos === "K") ? (pj(p) || 0) : (val(p) || 0);
+
+const POS_DEPTH = { QB: 2, RB: 4, WR: 5, TE: 1, K: 1, DST: 1 };
+
+function positionStrength(ids, lg) {
+  const out = {};
+  for (const pos of gradedPositions(lg)) {
+    const ps = ids.map(i => S.byId.get(i)).filter(p => p && p.pos === pos)
+                  .sort((a, b) => assetScore(b) - assetScore(a));
+    const depth = POS_DEPTH[pos] || 1;
+    out[pos] = {
+      count: ps.length,
+      top: ps.slice(0, depth).reduce((a, p) => a + assetScore(p), 0),
+      best: ps[0] || null,
+      players: ps,
+    };
+  }
+  return out;
+}
+
+function rosterNeeds(ids, lg) {
+  const st = positionStrength(ids, lg);
+  const league = S.league.rosters.map(r => positionStrength(r.players, lg));
+  const needs = {};
+  for (const pos of gradedPositions(lg)) {
+    const all = league.map(x => x[pos].top).sort((a, b) => a - b);
+    const mine = st[pos].top;
+    const pct = all.length ? all.filter(v => v < mine).length / all.length : 0.5;
+    needs[pos] = { pct, label: pct < 0.25 ? "need" : pct < 0.5 ? "thin"
+                          : pct < 0.78 ? "solid" : "strength" };
+  }
+  return needs;
+}
+
+/* ------------------------------------------------------------ data loading */
+async function loadJSON(path) {
+  const r = await fetch(path, { cache: "no-store" });
+  if (!r.ok) throw new Error(path + " " + r.status);
+  return r.json();
+}
+
+// Try Sleeper live from the viewer's browser. Blocked by the artifact CSP in
+// most cases — that is expected, and the baked-in league is the fallback.
+async function trySleeper(leagueId) {
+  const base = "https://api.sleeper.app/v1/league/" + encodeURIComponent(leagueId);
+  const grab = async u => {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 7000);
+    try { const r = await fetch(u, { signal: c.signal }); return r.ok ? r.json() : null; }
+    finally { clearTimeout(t); }
+  };
+  const wk = S.meta.upcoming_week;
+  const [lg, rs, us, mu] = await Promise.all([
+    grab(base), grab(base + "/rosters"), grab(base + "/users"),
+    wk ? grab(base + "/matchups/" + wk) : Promise.resolve(null)]);
+  if (!lg || !rs || !us) throw new Error("no data");
+  const uname = Object.fromEntries(us.map(u => [u.user_id,
+    u.metadata?.team_name || u.display_name || "Team"]));
+  // head-to-head pairings and this week's starters, which can differ from the
+  // roster's stored list
+  let matchups = null;
+  if (Array.isArray(mu) && mu.length && wk) {
+    const by_roster = {}, groups = {};
+    for (const row of mu) {
+      const rid = String(row.roster_id);
+      by_roster[rid] = {
+        matchup_id: row.matchup_id == null ? "" : String(row.matchup_id),
+        points: row.points || 0,
+        starters: (row.starters || []).map(String),
+      };
+      if (row.matchup_id != null) {
+        const key = String(row.matchup_id);
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(rid);
+      }
+    }
+    matchups = { [String(wk)]: {
+      pairs: Object.keys(groups).map(id => ({ matchup_id: id, rosters: groups[id] })),
+      by_roster,
+    } };
+  }
+
+  return {
+    sample: false, source: "sleeper-live", name: lg.name, league_id: lg.league_id,
+    scoring_settings: lg.scoring_settings || null,
+    matchups,
+    season: +lg.season, teams: lg.total_rosters,
+    type: lg.settings?.type === 2 ? "dynasty" : lg.settings?.type === 1 ? "keeper" : "redraft",
+    scoring: (lg.scoring_settings?.rec ?? 0) >= 1 ? "ppr"
+           : (lg.scoring_settings?.rec ?? 0) > 0 ? "half" : "std",
+    roster_positions: lg.roster_positions,
+    my_team: null,
+    rosters: rs.map(r => ({
+      id: String(r.roster_id), name: uname[r.owner_id] || ("Roster " + r.roster_id),
+      owner: uname[r.owner_id] || "", players: r.players || [],
+      starters: r.starters || [], picks: [],
+      wins: r.settings?.wins || 0, losses: r.settings?.losses || 0,
+      pf: (r.settings?.fpts || 0) + (r.settings?.fpts_decimal || 0) / 100,
+      pa: (r.settings?.fpts_against || 0) + (r.settings?.fpts_against_decimal || 0) / 100,
+    })),
+    results: [],
+  };
+}
+
+/* ------------------------------------------------------------ filtering
+   One filter model shared by the waiver board and the player table, so the
+   two read as the same instrument. Position is a multi-select: on the waiver
+   board an empty selection means the skill positions, because nobody opens a
+   waiver board to look at kickers. */
+const ALL_POSNS = ["QB", "RB", "WR", "TE", "K", "DST"];
+/* Only offer positions the league actually starts. Showing a D/ST chip in a
+   league with no D/ST slot invites a decision that doesn't exist. */
+const posChips = () => {
+  const g = gradedPositions(S.league || { roster_positions: [] });
+  return g.length ? g : ALL_POSNS;
+};
+/* The waiver pool when no position chip is picked: exactly the positions this
+   league starts. Streaming a defense is a real weekly decision in a league with
+   a D/ST slot, and noise in one without. */
+const waiverDefaultPositions = lg => gradedPositions(lg || { roster_positions: [] });
+
+const FILT_DEFAULTS = {
+  waiver: { q: "", pos: [], team: "", avail: "fa", needs: false, minProj: 0,
+            sort: "ws", dir: -1 },
+  players: { q: "", pos: [], team: "", owner: "all", maxAge: 0, inj: "any",
+             sort: "proj", dir: -1 },     // "proj" is in every column set
+};
+const FILT = {
+  waiver: { ...FILT_DEFAULTS.waiver, pos: [] },
+  players: { ...FILT_DEFAULTS.players, pos: [] },
+};
+
+function saveFilters() {
+  try { localStorage.setItem("sacko.filters", JSON.stringify(FILT)); } catch {}
+}
+function restoreFilters() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("sacko.filters") || "null");
+    if (!raw) return;
+    for (const scope of ["waiver", "players"])
+      if (raw[scope]) Object.assign(FILT[scope], raw[scope],
+        { pos: Array.isArray(raw[scope].pos) ? raw[scope].pos : [] });
+  } catch {}
+}
+
+const nflTeams = () => [...new Set(S.players.map(p => p.team))]
+  .filter(t => t && t !== "FA").sort();
+
+const filtersActive = scope => {
+  const f = FILT[scope], d = FILT_DEFAULTS[scope];
+  return Object.keys(d).some(k => k === "sort" || k === "dir" ? false
+    : k === "pos" ? f.pos.length : f[k] !== d[k]);
+};
+
+/** Everything the two tabs filter on in common. */
+function baseFilter(scope, list) {
+  const f = FILT[scope];
+  // a chip saved under another league may name a position this one never starts
+  const allowed = posChips();
+  if (f.pos.length) {
+    const kept = f.pos.filter(p => allowed.includes(p));
+    if (kept.length !== f.pos.length) f.pos = kept;
+  }
+  const pos = f.pos.length ? f.pos
+    : (scope === "waiver" ? waiverDefaultPositions(S.league) : null);
+  if (f.q) list = list.filter(p => p.name.toLowerCase().includes(f.q));
+  if (pos) list = list.filter(p => pos.includes(p.pos));
+  if (f.team) list = list.filter(p => p.team === f.team);
+  return list;
+}
+
+/**
+ * The filter block. `extra` carries the controls only one tab needs, plus the
+ * line that says how much of the pool survived.
+ */
+function filterBar(scope, extra) {
+  const f = FILT[scope];
+  return `<div class="filters">
+    <div class="row" style="gap:8px">
+      <input type="search" data-f="${scope}:q" value="${esc(f.q)}"
+        placeholder="Search players…" style="flex:1; min-width:140px"
+        aria-label="Search players">
+      ${filtersActive(scope)
+        ? `<button class="btn ghost sm" data-fclear="${scope}">Clear</button>` : ""}
+    </div>
+    <div class="chips" role="group" aria-label="Position">
+      ${posChips().map(p => `<button class="fchip" type="button" data-fpos="${scope}:${p}"
+        aria-pressed="${f.pos.includes(p)}">${p}</button>`).join("")}
+    </div>
+    <div class="fgrid">
+      <select data-f="${scope}:team" aria-label="NFL team">
+        <option value="">Any NFL team</option>
+        ${nflTeams().map(t => `<option ${f.team === t ? "selected" : ""}>${t}</option>`).join("")}
+      </select>
+      ${extra.controls || ""}
+    </div>
+    <div class="fcount">${extra.count}</div>
+  </div>`;
+}
+
+function wireFilters(scope, rerender) {
+  const root = $("#p-" + scope);
+  $$("[data-f]", root).forEach(el => {
+    const key = el.dataset.f.split(":")[1];
+    const isText = el.tagName === "INPUT" && el.type !== "checkbox";
+    el.addEventListener(isText ? "input" : "change", () => {
+      const f = FILT[scope];
+      f[key] = el.type === "checkbox" ? el.checked
+        : el.type === "number" ? (+el.value || 0)
+        : key === "q" ? el.value.toLowerCase() : el.value;
+      saveFilters(); rerender();
+      if (isText) {                       // keep typing where they left off
+        const back = $(`[data-f="${scope}:${key}"]`);
+        if (back) { back.focus(); try { back.setSelectionRange(back.value.length,
+          back.value.length); } catch {} }
+      }
+    });
+  });
+  $$("[data-fpos]", root).forEach(b => b.addEventListener("click", () => {
+    const p = b.dataset.fpos.split(":")[1], f = FILT[scope];
+    f.pos = f.pos.includes(p) ? f.pos.filter(x => x !== p) : [...f.pos, p];
+    saveFilters(); rerender();
+  }));
+  const clear = $(`[data-fclear="${scope}"]`, root);
+  if (clear) clear.addEventListener("click", () => {
+    Object.assign(FILT[scope], FILT_DEFAULTS[scope], { pos: [] });
+    saveFilters(); rerender();
+  });
+  $$("[data-sort]", root).forEach(th => th.addEventListener("click", () => {
+    const k = th.dataset.sort, f = FILT[scope];
+    if (f.sort === k) f.dir *= -1; else { f.sort = k; f.dir = -1; }
+    saveFilters(); rerender();
+  }));
+}
+
+/** Sort a list by a key that may be a stored field or a derived number. */
+function sortBy(list, key, dir, derived) {
+  return list.sort((a, b) => {
+    const x = derived(a, key), y = derived(b, key);
+    if (typeof x === "string" || typeof y === "string")
+      return String(x ?? "").localeCompare(String(y ?? "")) * dir;
+    return ((y ?? -Infinity) - (x ?? -Infinity)) * (dir === -1 ? 1 : -1);
+  });
+}
+
+/* ------------------------------------------------------------ ESPN loading */
+/* ESPN grants permission per `view`, not per league: a private league can
+   refuse mSettings while still serving mTeam and mRoster. So each view is
+   fetched on its own and a refusal degrades that one piece. */
+const ESPN_SLOT = {
+  0: "QB", 1: "QB", 2: "RB", 3: "WRRB_FLEX", 4: "WR", 5: "REC_FLEX", 6: "TE",
+  7: "SUPER_FLEX", 16: "DEF", 17: "K", 20: "BN", 21: "IR", 23: "FLEX", 24: "IR",
+};
+const ESPN_POS = { 1: "QB", 2: "RB", 3: "WR", 4: "TE", 5: "K", 16: "DST" };
+
+const nameKey = s => (s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "")
+  .toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, "")
+  .replace(/[^a-z ]/g, "").replace(/\s+/g, " ").trim();
+
+let _espnIdx = null;
+function espnIndex() {
+  if (_espnIdx) return _espnIdx;
+  const byEspn = new Map(), byName = new Map(), byTeam = new Map();
+  for (const p of S.players) {
+    if (p.espn) byEspn.set(String(p.espn), p);
+    byName.set(p.key + "|" + p.pos, p);
+    if (p.pos !== "DST") continue;
+    // Not one defense in the database carries an ESPN id, and ESPN names them
+    // "Vikings D/ST" while we key them "MIN". Index every form, and keep a
+    // team-code map so proTeamId can answer without going through a name.
+    byTeam.set(p.team, p);
+    const nick = TEAM_NICK[p.team];
+    for (const form of [p.team, nick, nick && nick + " dst",
+                        nick && nick + " d st", p.team + " dst"]) {
+      if (form) byName.set(nameKey(form) + "|DST", p);
+    }
+  }
+  _espnIdx = { byEspn, byName, byTeam };
+  return _espnIdx;
+}
+
+/** ESPN player entry -> our player, by id first and name as the safety net. */
+function matchEspn(entry) {
+  const { byEspn, byName, byTeam } = espnIndex();
+  const pl = entry.playerPoolEntry ? entry.playerPoolEntry.player : entry.player;
+  if (!pl) return null;
+  const pos = ESPN_POS[pl.defaultPositionId];
+
+  /* Defenses are resolved before anything else, and by TEAM rather than by
+     name. ESPN gives a defense a negative player id (-16000 minus its pro-team
+     id) and a name like "Vikings D/ST"; our database has neither of those. The
+     old code tried the name and the first word, matched nothing, and dropped
+     every defense on the floor — a roster came back complete except that the
+     D/ST slot was empty, which is exactly what it looked like from outside. */
+  if (pos === "DST" || (pl.id != null && Number(pl.id) < 0)) {
+    const id = Number(pl.id);
+    const code = ESPN_PRO_TEAM[pl.proTeamId]
+      || (id < 0 ? ESPN_PRO_TEAM[-id - 16000] : null);
+    const hit = code && byTeam.get(code);
+    if (hit) return hit;
+    const nm = nameKey(pl.fullName || "");
+    return byName.get(nm + "|DST")
+        || byName.get(nameKey(nm.replace(/\bd ?st\b/g, "")) + "|DST")
+        || null;
+  }
+
+  const hit = byEspn.get(String(pl.id));
+  if (hit) return hit;
+  if (!pos) return null;
+  return byName.get(nameKey(pl.fullName) + "|" + pos) || null;
+}
+
+async function tryEspn(leagueId, season) {
+  season = season || S.meta.season || new Date().getFullYear();
+  const base = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/"
+    + season + "/segments/0/leagues/" + encodeURIComponent(leagueId);
+
+  // Signed-in viewers carry espn_s2/SWID; send them when the browser allows,
+  // and fall back to an anonymous read when it doesn't.
+  const get = async views => {
+    const url = base + (views.length ? "?" + views.map(v => "view=" + v).join("&") : "");
+    for (const creds of ["include", "omit"]) {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 12000);
+      try {
+        const r = await fetch(url, { credentials: creds, signal: ctl.signal });
+        if (r.ok) return r.json();
+        if (r.status === 401 || r.status === 403) continue;   // try anonymously
+        return null;
+      } catch { /* CORS, offline, or timed out — fall through */ }
+      finally { clearTimeout(timer); }
+    }
+    return null;
+  };
+
+  const [root, teamView, rosterView, settingsView] = await Promise.all(
+    [get([]), get(["mTeam"]), get(["mRoster"]), get(["mSettings"])]);
+
+  if (!root && !teamView) {
+    throw new Error("ESPN didn't answer for league " + leagueId
+      + ". Check the ID and season, and that you're signed in to ESPN in this browser.");
+  }
+
+  const settings = (settingsView && settingsView.settings) || (root && root.settings) || {};
+  const teams = (teamView && teamView.teams) || (root && root.teams) || [];
+  const rosters = (rosterView && rosterView.teams) || [];
+  const rosterById = new Map(rosters.map(t => [t.id, t]));
+
+  const members = new Map(((teamView || root || {}).members || [])
+    .map(m => [m.id, m.displayName]));
+
+  /* Scoring. A label alone isn't enough: a league loaded from ESPN that carried
+     only "half" fell straight back to DEFAULT_SCORING, so every projection was
+     computed at 4 points a passing touchdown and a full point a catch — the
+     league's own numbers were right there in the payload and thrown away.
+     Only statIds whose meaning is certain are mapped; ESPN's defensive ids are
+     undocumented, so those fall through to the defaults via scoring_partial. */
+  const ESPN_STAT = {
+    3: "pass_yd", 4: "pass_td", 19: "pass_2pt", 20: "pass_int",
+    24: "rush_yd", 25: "rush_td", 26: "rush_2pt",
+    42: "rec_yd", 43: "rec_td", 44: "rec_2pt", 53: "rec",
+    72: "fum_lost",
+    77: "fgm_40_49", 85: "fgmiss", 86: "xpm", 88: "xpmiss", 198: "fgm_50p",
+  };
+  let scoring = "unknown", scoringTable = null;
+  const items = settings.scoringSettings && settings.scoringSettings.scoringItems;
+  if (items) {
+    const rec = items.find(i => i.statId === 53);
+    const v = rec ? (rec.points ?? 0) : 0;
+    scoring = v >= 1 ? "ppr" : v > 0 ? "half" : "std";
+    scoringTable = {};
+    for (const it of items) {
+      const pts = it.points ?? 0;
+      if (ESPN_STAT[it.statId]) scoringTable[ESPN_STAT[it.statId]] = pts;
+      if (it.statId === 80)              // ESPN bands every FG under 40 together
+        scoringTable.fgm_0_19 = scoringTable.fgm_20_29 = scoringTable.fgm_30_39 = pts;
+    }
+    if (!Object.keys(scoringTable).length) scoringTable = null;
+  }
+
+  // roster shape: from settings when served, else inferred from the entries
+  let positions = [];
+  const counts = settings.rosterSettings && settings.rosterSettings.lineupSlotCounts;
+  if (counts) {
+    for (const [slot, n] of Object.entries(counts)) {
+      const name = ESPN_SLOT[+slot];
+      if (name) for (let i = 0; i < n; i++) positions.push(name);
+    }
+  } else if (rosters.length) {
+    const seen = {};
+    for (const e of (rosters[0].roster || {}).entries || [])
+      seen[e.lineupSlotId] = (seen[e.lineupSlotId] || 0) + 1;
+    for (const [slot, n] of Object.entries(seen)) {
+      const name = ESPN_SLOT[+slot];
+      if (name) for (let i = 0; i < n; i++) positions.push(name);
+    }
+  }
+  if (!positions.length)
+    positions = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "DEF", "K"]
+      .concat(Array(7).fill("BN"));
+  const order = ["QB", "RB", "WR", "TE", "WRRB_FLEX", "REC_FLEX", "FLEX",
+                 "SUPER_FLEX", "DEF", "K", "BN", "IR"];
+  positions.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+
+  let matched = 0, total = 0;
+  const built = teams.map(t => {
+    const rt = rosterById.get(t.id) || t;
+    const entries = ((rt.roster || {}).entries) || [];
+    const players = [], starters = [];
+    for (const e of entries) {
+      total++;
+      const p = matchEspn(e);
+      if (!p) continue;
+      matched++;
+      players.push(p.id);
+      const slot = ESPN_SLOT[e.lineupSlotId];
+      if (slot && slot !== "BN" && slot !== "IR") starters.push(p.id);
+    }
+    const rec = (t.record && t.record.overall) || {};
+    return {
+      id: String(t.id),
+      name: t.name || [t.location, t.nickname].filter(Boolean).join(" ") || ("Team " + t.id),
+      owner: members.get(t.primaryOwner) || "",
+      players, starters, picks: [],
+      wins: rec.wins || 0, losses: rec.losses || 0,
+      pf: Math.round((rec.pointsFor || 0) * 100) / 100,
+      pa: Math.round((rec.pointsAgainst || 0) * 100) / 100,
+    };
+  });
+
+  let gotRosters = built.some(r => r.players.length > 3);
+
+  /* If this league starts a defense and the fetch came back without a single
+     one, the roster read is not trustworthy however complete it looks — that
+     is precisely the failure that emptied the D/ST slot while every skill
+     player arrived intact. Report standings only, so the guards upstream keep
+     whatever better data is already loaded. */
+  const startsDef = positions.includes("DEF");
+  const anyDst = built.some(r => r.players.some(i => {
+    const pp = S.byId.get(i); return pp && pp.pos === "DST";
+  }));
+  const dstMissing = gotRosters && startsDef && !anyDst;
+  if (dstMissing) gotRosters = false;
+
+  return {
+    key: "espn-" + leagueId, sample: false, source: "espn", platform: "ESPN",
+    scoring_settings: scoringTable, scoring_partial: !!scoringTable,
+    name: settings.name || (root && root.settings && root.settings.name) || ("ESPN " + leagueId),
+    league_id: String(leagueId), season: +season,
+    type: settings.draftSettings && settings.draftSettings.keeperCount ? "keeper" : "redraft",
+    teams: built.length, scoring, roster_positions: positions,
+    my_team: null,
+    status: gotRosters ? "full" : "standings_only",
+    note: gotRosters ? "" : dstMissing
+      ? "ESPN returned rosters for this league but no defenses, so the read was "
+        + "discarded rather than trusted — the rosters already loaded are kept."
+      : "ESPN served this league's standings but not its rosters. If you're signed in "
+      + "to ESPN in this browser, reload and try again.",
+    rosters: built, results: [],
+    match_rate: total ? Math.round(matched / total * 100) : null,
+  };
+}
+
+/* ================================================================== render */
+const TABS = [
+  ["matchup", () => "Matchup"],
+  ["week",   () => "Week " + (S.meta.upcoming_week || "")],
+  ["waiver", () => "Waivers"],
+  ["trade",  () => "Trades"],
+  ["league", () => "League"],
+  ["players",() => "Players"],
+];
+
+function renderTabs() {
+  $("#tabbar").innerHTML = TABS.map(([k, label]) =>
+    `<button class="tab" role="tab" data-tab="${k}" aria-selected="${S.tab === k}">${esc(label())}</button>`
+  ).join("");
+}
+
+function show(tab) {
+  S.tab = tab;
+  const sb = $("#staleBanner");
+  if (sb) sb.innerHTML = staleBannerHTML();
+  TABS.forEach(([k]) => { $("#p-" + k).hidden = k !== tab; });
+  $$(".tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  ({ matchup: renderMatchup, week: renderWeek, waiver: renderWaiver,
+     trade: renderTrade, league: renderLeague, players: renderPlayers }[tab])();
+  window.scrollTo({ top: 0, behavior: "instant" });
+  try { localStorage.setItem("ss.tab", tab); } catch {}
+}
+
+const me = () => S.league.rosters.find(r => r.id === S.myTeam) || S.league.rosters[0];
+
+function injChip(p) {
+  if (!p.inj) return "";
+  const cls = p.inj === "Out" ? "bad" : p.inj === "Doubtful" ? "bad" : "warn";
+  const wk = S.meta.sources?.injuries_week;
+  return `<span class="chip ${cls}" title="Report from Week ${wk}">${esc(p.inj[0])}${
+    p.inj_note ? " · " + esc(p.inj_note) : ""}</span>`;
+}
+const oppTxt = p => p.opp ? `${p.home ? "vs" : "@"} ${p.opp}` : "no game";
+
+function nameCell(p) {
+  return `<span class="pos ${p.pos}">${p.pos}</span>
+    <span>${esc(p.name)}</span>${injChip(p)}`;
+}
+
+/* ------------------------------------------------------------ which week
+   Every number in this copy belongs to one NFL week — `meta.upcoming_week`,
+   fixed when the data was built. That used to be the only notion of "this
+   week" the app had, so a copy built for Week 3 went on presenting Week 3 as
+   current indefinitely: the downloaded file did exactly that, on a phone, with
+   nothing on screen to say so.
+
+   So the app now also asks the clock. A week runs until its last game has
+   ended; the first week whose last game hasn't ended is the one being played.
+   When that is later than the week this copy was built for, the data is last
+   week's, and the app says so on every tab instead of passing it off as
+   current. */
+
+/** The NFL week being played right now, from the kickoff schedule. */
+function clockWeek() {
+  const k = S.kick;
+  if (!k) return null;
+  const now = Date.now();
+  const weeks = Object.keys(k).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  for (const w of weeks) {
+    const ends = Object.values(k[String(w)] || {})
+      .map(g => Date.parse(g.end)).filter(Number.isFinite);
+    if (ends.length && Math.max(...ends) > now) return w;
+  }
+  return null;                                   // the regular season is over
+}
+
+/** The week this copy's projections, pairings and lineups were built for. */
+const dataWeek = () => Number(S.meta.upcoming_week) || null;
+
+/** The current week, when it is LATER than the data — i.e. the data is stale. */
+function staleWeek() {
+  const c = clockWeek(), d = dataWeek();
+  return (c && d && c > d) ? c : null;
+}
+
+const isStandalone = () => typeof STANDALONE !== "undefined" && STANDALONE;
+
+/** What to do about it, which depends on which copy this is. */
+function staleRemedy(c) {
+  return isStandalone()
+    ? `A downloaded copy never updates itself. Open Sacko Shield in Claude for
+       Week ${c} — that page is rebuilt on a schedule.`
+    : `The next scheduled rebuild brings in Week ${c}.`;
+}
+
+function staleBannerHTML() {
+  const c = staleWeek();
+  if (!c) return "";
+  const d = dataWeek();
+  return `<div class="banner" role="status" style="margin-bottom:14px"><div>
+    <b>Week ${d} is over — it's Week ${c} now.</b> Everything here was built for
+    Week ${d}: projections, matchups and lineups are last week's, not this
+    week's. ${staleRemedy(c)}</div></div>`;
+}
+
+/* ---------------------------------------------------------- 0. the matchup
+   Everything here is driven by one simulation. The score, the win probability
+   and the path to victory are three views of the same ten thousand seasons,
+   which is why they can never disagree with each other. */
+
+/** Where a player's game is right now. Time alone is not enough: without live
+    scoring, a game the clock says is over has no points attached, and treating
+    that as "finished with zero" would be a lie. So absent a live feed every
+    game is reported as pre-kickoff and the card says so. */
+function gameState(p) {
+  const wk = String(S.meta.upcoming_week);
+  const k = S.sched && S.kick && S.kick[wk] && S.kick[wk][p.team];
+  if (!k || !S.livePoints) return { phase: "pre", left: 1 };
+  const now = Date.now();
+  const start = Date.parse(k.kick), end = Date.parse(k.end);
+  if (!(start && end) || now < start) return { phase: "pre", left: 1 };
+  if (now >= end) return { phase: "final", left: 0 };
+  return { phase: "live", left: Math.max(0, Math.min(1, (end - now) / (end - start))) };
+}
+
+/** Points already banked this week, when a live feed is attached. */
+const banked = p => (S.livePoints && S.livePoints[p.id] != null)
+  ? S.livePoints[p.id] : 0;
+
+/** Weekly standard deviation for a projected total, from the measured model. */
+function sigmaFor(p, mean) {
+  const m = (S.meta.variance && S.meta.variance.by_pos) || {};
+  const v = m[p.pos] || m.WR || { intercept: 2, slope: 0.4, floor: 1.5 };
+  return Math.max(v.floor || 1.5, v.intercept + v.slope * Math.max(0, mean));
+}
+
+/** One side of the matchup, resolved into what is banked and what is still live. */
+function sideState(starters) {
+  return starters.map(id => S.byId.get(id)).filter(Boolean).map(p => {
+    const g = gameState(p);
+    const proj = pj(p) || 0;
+    const got = banked(p);
+    const remainMean = g.phase === "final" ? 0 : proj * g.left;
+    return {
+      p, phase: g.phase, left: g.left, proj, got,
+      remainMean,
+      // variance shrinks with the share of the game still to play
+      sd: g.phase === "final" ? 0 : sigmaFor(p, proj) * Math.sqrt(g.left),
+      expected: got + remainMean,
+    };
+  });
+}
+
+/* A seeded generator, so re-rendering the same matchup gives the same answer.
+   The uncertainty being shown is in the model, not in how many dice were
+   rolled; a win probability that twitched on every repaint would be claiming
+   precision the sample size doesn't have. */
+let _rng = mulberry32(1);
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* Box–Muller, reused rather than recomputed per draw. */
+let _spare = null;
+function gauss() {
+  if (_spare !== null) { const v = _spare; _spare = null; return v; }
+  let u = 0, v = 0, s = 0;
+  do { u = _rng() * 2 - 1; v = _rng() * 2 - 1; s = u * u + v * v; }
+  while (s === 0 || s >= 1);
+  const f = Math.sqrt(-2 * Math.log(s) / s);
+  _spare = v * f;
+  return u * f;
+}
+
+/**
+ * Simulate the rest of the matchup.
+ * Returns the win probability, the margin distribution, and — the useful part —
+ * what each of your players averages IN THE WORLDS WHERE YOU WIN. That
+ * conditional expectation is the path to victory: not "he could go off", but
+ * "across the wins, he goes for about this".
+ */
+function simulate(mine, theirs, n) {
+  n = n || 20000;
+  // seed from the state being simulated: same matchup, same answer; a score
+  // change or a lineup change moves it
+  let seed = 2166136261;
+  for (const s of mine.concat(theirs))
+    seed = Math.imul(seed ^ Math.round((s.got * 97 + s.remainMean * 13) * 100), 16777619);
+  _rng = mulberry32(seed >>> 0);
+  _spare = null;
+  const margins = new Float64Array(n);
+  const condSum = new Float64Array(mine.length);
+  const allSum = new Float64Array(mine.length);
+  let wins = 0;
+  for (let i = 0; i < n; i++) {
+    let a = 0, b = 0;
+    const draw = new Float64Array(mine.length);
+    for (let j = 0; j < mine.length; j++) {
+      const s = mine[j];
+      const v = s.got + Math.max(0, s.remainMean + s.sd * gauss());
+      draw[j] = v; allSum[j] += v; a += v;
+    }
+    for (const s of theirs) b += s.got + Math.max(0, s.remainMean + s.sd * gauss());
+    margins[i] = a - b;
+    if (a > b) {
+      wins++;
+      for (let j = 0; j < mine.length; j++) condSum[j] += draw[j];
+    }
+  }
+  return {
+    n, wins, winProb: wins / n, margins,
+    condMean: mine.map((_, j) => wins ? condSum[j] / wins : null),
+    allMean: mine.map((_, j) => allSum[j] / n),
+  };
+}
+
+/** Margin distribution. One series, zero marked, the winning half filled. */
+function marginChart(margins) {
+  const arr = Array.from(margins).sort((a, b) => a - b);
+  const lo = arr[Math.floor(arr.length * 0.01)], hi = arr[Math.floor(arr.length * 0.99)];
+  const BINS = 34, span = (hi - lo) || 1, w = span / BINS;
+  const counts = new Array(BINS).fill(0);
+  for (const v of arr) {
+    if (v < lo || v > hi) continue;
+    counts[Math.min(BINS - 1, Math.floor((v - lo) / w))]++;
+  }
+  const peak = Math.max(...counts, 1);
+  const W = 100, H = 40;
+  const zeroX = Math.max(0, Math.min(W, (0 - lo) / span * W));
+  return `<svg viewBox="0 0 ${W} ${H + 11}" width="100%" height="104" role="img"
+      aria-label="Distribution of your winning margin across simulations"
+      style="display:block">
+    ${counts.map((c, i) => {
+      const x = i / BINS * W, bw = W / BINS, h = c / peak * (H - 2);
+      const mid = lo + (i + 0.5) * w;
+      return `<rect x="${x + bw * 0.08}" y="${H - h}" width="${bw * 0.84}" height="${h}"
+        rx="0.8" fill="${mid >= 0 ? "var(--brand)" : "var(--sunk)"}"></rect>`;
+    }).join("")}
+    <line x1="${zeroX}" x2="${zeroX}" y1="0" y2="${H}" stroke="var(--ink2)"
+      stroke-width="0.8" stroke-dasharray="2 1.6"></line>
+    <text x="${zeroX}" y="${H + 9}" text-anchor="middle" font-size="4.6"
+      fill="var(--ink2)">tie</text>
+    ${zeroX > 14 ? `<text x="2" y="${H + 9}" font-size="4.6"
+      fill="var(--muted)">${fmt(lo, 0)}</text>` : ""}
+    ${zeroX < W - 14 ? `<text x="${W - 2}" y="${H + 9}" text-anchor="end" font-size="4.6"
+      fill="var(--muted)">+${fmt(hi, 0)}</text>` : ""}
+  </svg>`;
+}
+
+function mRow(s, showLive) {
+  const cls = s.phase === "live" ? "live" : s.phase === "final" ? "fin" : "pre";
+  const label = s.phase === "live" ? "live" : s.phase === "final" ? "final" : "—";
+  return `<div class="mrow" data-player="${esc(s.p.id)}" tabindex="0">
+    <span class="pos ${s.p.pos}">${s.p.pos}</span>
+    <div style="min-width:0">
+      <div style="font-weight:600; overflow-wrap:anywhere">${esc(s.p.name)}</div>
+      <div class="pmeta mono">${esc(s.p.team)} ${oppTxt(s.p)}
+        <span class="st ${cls}">${label}</span></div>
+    </div>
+    <div class="n">${showLive ? fmt(s.got) : ""}</div>
+    <div class="n" style="color:var(--muted)">${fmt(s.proj)}</div>
+  </div>`;
+}
+
+function renderMatchup() {
+  const lg = S.league;
+  if (!hasRosters(lg)) { $("#p-matchup").innerHTML = noRosters("The live matchup"); return; }
+
+  // A finished week's matchup is not this week's matchup. Rather than present
+  // last week's game, scores and odds as current, say plainly what is missing.
+  const stale = staleWeek();
+  if (stale) {
+    $("#p-matchup").innerHTML = `
+      <div class="card pad stack">
+        <div><span class="eyebrow">${esc(lg.platform)} · ${esc(lg.name)}</span>
+          <div class="h-sec">Week ${dataWeek()} is over</div></div>
+        <div class="sub">This copy doesn't have Week ${stale}'s matchups or projections
+          yet, so instead of showing you last week's game as if it were this one, it
+          shows nothing. ${staleRemedy(stale)}</div>
+      </div>${sourceCard()}`;
+    return;
+  }
+  const wk = String(S.meta.upcoming_week);
+  const mu = lg.matchups && lg.matchups[wk];
+  const meRoster = me();
+
+  // Pairings come from the platform where we can read them. ESPN's schedule
+  // sits behind the same payload that truncates, so some weeks arrive and some
+  // don't; where one doesn't, the viewer names the opponent instead and the tab
+  // works from that rather than refusing.
+  const paired = mu && mu.by_roster && mu.by_roster[meRoster.id];
+  // A hand-picked opponent is only good for the week it was picked in. It used
+  // to carry over, so a Week 3 pick was presented as the Week 4 opponent.
+  const oppId = paired
+    ? (mu.pairs.find(x => x.rosters.includes(meRoster.id)) || { rosters: [] })
+        .rosters.find(r => r !== meRoster.id)
+    : (Number(lg.manual_opponent_week) === Number(wk) ? lg.manual_opponent : null);
+  const oppRoster = lg.rosters.find(r => r.id === oppId);
+
+  if (!oppRoster) {
+    $("#p-matchup").innerHTML = `
+      <div class="card pad stack">
+        <div><span class="eyebrow">${esc(lg.platform)} · ${esc(lg.name)}</span>
+          <div class="h-sec">Who are you playing in Week ${wk}?</div></div>
+        <div class="sub">This league's pairings can't be read automatically. Pick your
+          Week ${wk} opponent and it sticks for the week — next week asks again.</div>
+        <select id="oppPick" aria-label="Week ${wk} opponent">
+          <option value="">Choose a team…</option>
+          ${lg.rosters.filter(r => r.id !== meRoster.id)
+            .map(r => `<option value="${esc(r.id)}">${esc(r.name)} (${r.wins}-${r.losses})</option>`)
+            .join("")}
+        </select>
+      </div>${sourceCard()}`;
+    const sel = $("#oppPick");
+    if (sel) sel.addEventListener("change", e => {
+      if (!e.target.value) return;
+      lg.manual_opponent = e.target.value;
+      lg.manual_opponent_week = Number(wk);
+      lg.manual = true;
+      saveManual(manualMap());
+      renderMatchup();
+    });
+    return;
+  }
+
+  /* A pairing can be known while the lineup behind it is not: ESPN gives up
+     who plays whom long before it will give up who is starting. So a side
+     always falls back to the best lineup its roster can field rather than
+     rendering an empty team. */
+  const best = r => (r && r.players && r.players.length)
+    ? optimalLineup(r.players, lg).lineup.filter(Boolean).map(p => p.id) : [];
+  const listed = (entry, roster) =>
+    (entry && Array.isArray(entry.starters) && entry.starters.length)
+      ? entry.starters : best(roster);
+
+  const myStarters = listed(paired ? mu.by_roster[meRoster.id] : null, meRoster);
+  const oppEntry = paired && oppId ? mu.by_roster[oppId] : null;
+  const oppStarters = listed(oppEntry, oppRoster);
+
+  const mine = sideState(myStarters);
+  const theirs = sideState(oppStarters);
+
+  /* If their roster is unknown, their week is still not a mystery: their season
+     scoring average is a real estimate, and the spread of your own lineup is a
+     fair stand-in for how much a team in this league moves week to week. Said
+     plainly on the card rather than dressed up as a player-level projection. */
+  let oppFromAverage = null;
+  if (!theirs.length) {
+    const games = Math.max(1, (oppRoster.wins || 0) + (oppRoster.losses || 0));
+    const mean = (oppRoster.pf || 0) / games;
+    if (mean > 0) {
+      const varMine = mine.reduce((a, s) => a + s.sd * s.sd, 0);
+      oppFromAverage = { mean, sd: Math.max(12, Math.sqrt(varMine)), games };
+      theirs.push({ p: { id: "__opp", name: oppRoster.name, pos: "QB", team: "" },
+        phase: "pre", left: 1, proj: mean, got: 0,
+        remainMean: mean, sd: oppFromAverage.sd, expected: mean, synthetic: true });
+    }
+  }
+  const sim = simulate(mine, theirs, 20000);
+
+  /* Sum what we matched, but SHOW what the platform says. A starter the player
+     database doesn't recognise contributes nothing to our sum, which would
+     quietly understate the score against the number he can see in the ESPN or
+     Sleeper app — and a score that disagrees with the source is worse than no
+     score. Where the two differ materially the card says so rather than
+     papering over it. */
+  const booked = rid => {
+    // Whichever route delivered this week's points also delivered the team
+    // totals that go with them; prefer those over the shipped snapshot's.
+    if (S.liveTotals && typeof S.liveTotals[rid] === "number" && S.liveTotals[rid] > 0)
+      return S.liveTotals[rid];
+    const e = mu && mu.by_roster && mu.by_roster[rid];
+    return (e && typeof e.points === "number" && e.points > 0) ? e.points : null;
+  };
+  const myMatched = mine.reduce((a, s) => a + s.got, 0);
+  const oppMatched = theirs.reduce((a, s) => a + s.got, 0);
+  const myBook = S.livePoints ? booked(meRoster.id) : null;
+  const oppBook = S.livePoints && oppId ? booked(oppId) : null;
+  const myGot = myBook != null ? myBook : myMatched;
+  const oppGot = oppBook != null ? oppBook : oppMatched;
+  const unmatched = (myBook != null && Math.abs(myBook - myMatched) > 1)
+    ? Math.round((myBook - myMatched) * 10) / 10 : 0;
+  const myExp = mine.reduce((a, s) => a + s.expected, 0);
+  const oppExp = theirs.reduce((a, s) => a + s.expected, 0);
+  const anyLive = mine.concat(theirs).some(s => s.phase !== "pre");
+  const left = mine.filter(s => s.phase !== "final").length;
+  const oppLeft = theirs.filter(s => s.phase !== "final").length;
+  const wp = Math.round(sim.winProb * 100);
+
+  // The levers: your players whose winning-world average most exceeds their
+  // ordinary projection. Sorted by how much of the gap each one carries.
+  const levers = mine.map((s, j) => ({
+    s, cond: sim.condMean[j], base: sim.allMean[j],
+    lift: (sim.condMean[j] ?? 0) - sim.allMean[j],
+  })).filter(x => x.s.phase !== "final" && x.lift > 0.2)
+     .sort((a, b) => b.lift - a.lift).slice(0, 5);
+
+  const gap = oppExp - myExp;
+
+  $("#p-matchup").innerHTML = `
+    ${rosterSourceBanner()}
+    <div class="card pad stack">
+      <div class="row" style="justify-content:space-between">
+        <span class="eyebrow">Week ${wk} · ${esc(lg.name)}</span>
+        <span class="chip ${anyLive ? "good" : ""}">${
+          anyLive ? (left + oppLeft > 0 ? "in progress" : "final") : "before kickoff"}</span>
+      </div>
+      <div class="score">
+        <div class="side">
+          <div class="nm2">${esc(meRoster.name)}</div>
+          <div class="pts">${fmt(anyLive ? myGot : myExp)}</div>
+          <div class="sub">${anyLive ? `proj ${fmt(myExp)} · ${left} to play`
+            : `${meRoster.wins}-${meRoster.losses}`}</div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="side" style="text-align:right">
+          <div class="nm2">${esc(oppRoster.name)}</div>
+          <div class="pts">${fmt(anyLive ? oppGot : oppExp)}</div>
+          <div class="sub">${anyLive ? `proj ${fmt(oppExp)} · ${oppLeft} to play`
+            : `${oppRoster.wins}-${oppRoster.losses}`}</div>
+        </div>
+      </div>
+      ${liveStatus()}
+      ${unmatched ? `<div class="sub"><span class="chip warn">note</span>
+        ${fmt(unmatched)} of your points come from a starter this app doesn't
+        recognise, so the rows below won't add up to the score above.</div>` : ""}
+    </div>
+
+    <div class="card pad stack">
+      <div><span class="eyebrow">Odds of winning</span>
+        <div class="wp"><b style="color:${wp >= 55 ? "var(--good)"
+          : wp <= 45 ? "var(--bad)" : "var(--ink)"}">${wp}%</b>
+          <span class="sub">${wp >= 65 ? "you're favoured" : wp <= 35 ? "you're the underdog"
+            : "close to a coin flip"}</span></div></div>
+      <div class="wpbar"><i style="width:${Math.max(0, Math.min(100, wp))}%"></i></div>
+      ${marginChart(sim.margins)}
+      <div class="srcline">${sim.n.toLocaleString()} simulations, rounded to a whole
+        percent — the sample supports about that much precision and no more. Each player is drawn
+        around his projection using the weekly variation actually measured this season
+        — quarterbacks move least, tight ends most${
+        anyLive ? ", and a player's spread shrinks as his game runs down" : ""}.
+        ${gap > 0 ? `You project <b>${fmt(gap)}</b> behind.`
+          : `You project <b>${fmt(-gap)}</b> ahead.`}
+        ${oppFromAverage ? ` Their side is their season average rather than a lineup —
+          add their roster for a player-level read.` : ""}</div>
+    </div>
+
+    <div class="card pad stack">
+      <div><span class="eyebrow">Path to victory</span>
+        <div class="h-sec">${
+          left === 0 && oppLeft === 0 ? "How it finished"
+          : sim.wins === 0 ? "No path left"
+          : sim.wins === sim.n ? "It's yours"
+          : wp >= 50 ? "What keeps you ahead" : "What has to happen"}</div></div>
+      ${(() => {
+        const running = left > 0;
+        const deficit = oppExp - myExp;
+        // Nothing left to play: the week is decided either way.
+        if (!running && !oppLeft) return `<div class="note">${myGot > oppGot
+          ? `Final — you won by ${fmt(myGot - oppGot)}.`
+          : myGot < oppGot ? `Final — you lost by ${fmt(oppGot - myGot)}.`
+          : "Final — a tie."}</div>`;
+        // Won or lost in every simulation: say so rather than inventing a lever.
+        if (sim.wins === 0) return `<div class="note">Not one of the
+          ${sim.n.toLocaleString()} simulations ends with you ahead. You are
+          <b>${fmt(oppGot - myGot)}</b> down with ${running ? left : "no"} starter${
+          left === 1 ? "" : "s"} left, and the most they have ever produced together
+          in these runs still falls short. This one is gone.</div>`;
+        if (sim.wins === sim.n) return `<div class="note">You win in all
+          ${sim.n.toLocaleString()} simulations. ${oppLeft
+            ? `They have ${oppLeft} still to play, but not enough left to catch
+               ${fmt(myGot - oppGot)}.`
+            : "Their week is over."}</div>`;
+        if (!levers.length) return `<div class="note">The wins don't hinge on any one
+          player — you are ${deficit > 0 ? fmt(deficit) + " behind" : fmt(-deficit)
+          + " ahead"} on projection and it comes down to the spread.</div>`;
+        return `
+          <div class="sub">Across the ${sim.wins.toLocaleString()} simulations you win,
+            these are the players who come in above their ordinary projection — and by
+            how much. This is the shape of a realistic win, not a best case.</div>
+          ${levers.map(x => `<div class="lever">
+            <div><div class="pname">${nameCell(x.s.p)}</div>
+              <div class="pmeta mono">${esc(x.s.p.team)} ${oppTxt(x.s.p)}${
+                x.s.phase === "live" ? " · " + fmt(x.s.got) + " so far" : ""}</div></div>
+            <div style="text-align:right">
+              <div class="mono" style="font-weight:600">${fmt(x.cond)}</div>
+              <div class="pmeta">vs ${fmt(x.base)} normally
+                <span style="color:var(--good)">+${fmt(x.lift)}</span></div></div>
+          </div>`).join("")}
+          <div class="note">${pathNote(wp, gap, levers, left)}</div>`;
+      })()}
+    </div>
+
+    <div class="card">
+      <div class="pad" style="border-bottom:1px solid var(--line)">
+        <div class="row" style="justify-content:space-between">
+          <span class="eyebrow">${esc(meRoster.name)}</span>
+          <span class="sub">${anyLive ? "live · proj" : "projected"}</span></div>
+      </div>
+      ${mine.map(s => mRow(s, anyLive)).join("")}
+      <div class="pad" style="background:var(--card2); border-top:1px solid var(--line);
+        border-bottom:1px solid var(--line)">
+        <span class="eyebrow">${esc(oppRoster.name)}</span>
+      </div>
+      ${oppFromAverage ? `<div class="pad stack" style="gap:7px">
+        <div class="sub">Their roster isn't loaded, so their week is estimated from
+          what they have actually scored: <b>${fmt(oppFromAverage.mean)}</b> per game
+          across ${oppFromAverage.games}, give or take ${fmt(oppFromAverage.sd, 0)}.</div>
+        <button class="btn ghost sm" data-roster="${esc(oppRoster.id)}">Add their roster</button>
+      </div>` : theirs.map(s => mRow(s, anyLive)).join("")}
+    </div>
+
+    ${sourceCard()}`;
+}
+
+/** One sentence of plain English about what the numbers are saying. */
+function pathNote(wp, gap, levers, left) {
+  const top = levers[0];
+  if (!top) return "";
+  const who = top.s.p.name;
+  if (wp >= 65)
+    return `You don't need anything unusual — hold serve and it's yours. The one
+      thing that would put it out of reach is ${esc(who)} clearing
+      ${fmt(top.cond)}.`;
+  if (wp >= 45)
+    return `This comes down to ${esc(who)}. In the wins he averages
+      ${fmt(top.cond)} rather than his usual ${fmt(top.base)} — about
+      ${fmt(top.lift)} more. With ${left} of your starters still to play, one
+      above-average afternoon is enough.`;
+  return `You need more than one thing to land. ${esc(who)} at ${fmt(top.cond)} is
+    the biggest single swing, but the wins also need ${
+      levers[1] ? esc(levers[1].s.p.name) + " near " + fmt(levers[1].cond) : "help elsewhere"}.
+    That is a realistic afternoon, not a miracle — it just has to happen twice.`;
+}
+
+/* ------------------------------------------------------------- 1. the week */
+function renderWeek() {
+  const lg = S.league, wk = S.meta.upcoming_week;
+  if (!hasRosters(lg)) { $("#p-week").innerHTML = noRosters("Start/sit"); return; }
+  const r = me();
+  const { slots, lineup, total, bench } = optimalLineup(r.players, lg);
+
+  // What Sleeper currently has starting, when we know it.
+  const cur = r.starters && r.starters.length
+    ? r.starters.map(i => S.byId.get(i) || null) : null;
+  const curTotal = cur ? cur.reduce((a, p) => a + (pj(p) || 0), 0) : null;
+
+  const moves = [];
+  if (cur) {
+    const optIds = new Set(lineup.filter(Boolean).map(p => p.id));
+    const curIds = new Set(cur.filter(Boolean).map(p => p.id));
+    const benchNow = [...optIds].filter(i => !curIds.has(i)).map(i => S.byId.get(i));
+    const sitNow   = [...curIds].filter(i => !optIds.has(i)).map(i => S.byId.get(i));
+    benchNow.forEach((inP, i) => { if (sitNow[i]) moves.push([sitNow[i], inP]); });
+  }
+
+  const flag = lineup.filter(p => p && (p.inj || !p.opp));
+  // Only flag consensus disagreement while the weekly rankings cover this week.
+  const wkFresh = S.meta.weekly_covers_week === S.meta.upcoming_week;
+  const risky = wkFresh
+    ? lineup.filter(p => p && p.wk_sd != null && pj(p) > 4 && p.wk_sd / pj(p) > 0.9)
+    : [];
+
+  $("#p-week").innerHTML = `
+    ${rosterSourceBanner()}
+    <div class="grid g3">
+      ${tile("Projected", fmt(total, 1), (() => {
+        const sc = scoringOf(lg);
+        if (!sc) return "optimal lineup, PPR";
+        if (lg.scoring_partial) return `optimal lineup, ${sc.rec} PPR`;
+        return `optimal lineup, ${sc.pass_td}pt pass TD`;
+      })())}
+      ${(() => {
+        const known = lg.rosters.filter(r => (r.players || []).length).length;
+        return known >= 3
+          ? tile("League median", fmt(medianProj(), 1),
+                 `${known} of ${lg.teams} rosters known`)
+          : tile("League median", "—",
+                 `only ${known} roster${known === 1 ? "" : "s"} loaded`);
+      })()}
+      ${tile("Your record", matchupLine(r), esc(r.name))}
+    </div>
+
+    ${moves.length ? `<div class="card pad stack">
+      <div><span class="eyebrow">Lineup changes</span>
+        <div class="h-sec">${moves.length} move${moves.length > 1 ? "s" : ""} worth
+          ${fmt(total - curTotal, 1)} pts</div></div>
+      ${moves.map(([out, inn]) => `<div class="move">
+        <div><div class="pmeta">Bench</div><div class="pname">${nameCell(out)}</div>
+          <div class="pmeta mono">${fmt(pj(out))} · ${oppTxt(out)}</div></div>
+        <div class="arrow">→</div>
+        <div><div class="pmeta">Start</div><div class="pname">${nameCell(inn)}</div>
+          <div class="pmeta mono">${fmt(pj(inn))} · ${oppTxt(inn)}</div></div>
+      </div>`).join("")}
+    </div>` : cur ? `<div class="card pad"><span class="chip good">✓ Optimal</span>
+      <span class="sub"> Your current lineup already maximises projected points.</span></div>` : ""}
+
+    <div class="card">
+      <div class="pad" style="border-bottom:1px solid var(--line)">
+        <span class="eyebrow">${esc(r.name)} · Week ${wk} lineup</span>
+        <div class="h-sec">Optimal start/sit</div>
+      </div>
+      ${lineup.map((p, i) => slotRow(slots[i], p)).join("")}
+      <div class="pad" style="background:var(--card2); border-top:1px solid var(--line)">
+        <span class="eyebrow">Bench (${bench.length})</span>
+      </div>
+      ${bench.sort((a, b) => pj(b) - pj(a)).slice(0, 10)
+        .map(p => slotRow("BN", p, true)).join("") || `<div class="empty">No bench players with a projection.</div>`}
+    </div>
+
+    ${(flag.length || risky.length) ? `<div class="card pad stack">
+      <span class="eyebrow">Check before kickoff</span>
+      ${flag.map(p => `<div class="note"><b>${esc(p.name)}</b> — ${
+        p.opp ? `listed ${esc(p.inj)}${p.inj_note ? " (" + esc(p.inj_note) + ")" : ""} on the Week ${
+          S.meta.sources?.injuries_week} report. Confirm his status before lock.`
+              : "no game this week — he is on bye."}</div>`).join("")}
+      ${risky.map(p => `<div class="note"><b>${esc(p.name)}</b> — widest ranking spread in your
+        lineup (±${fmt(p.wk_sd)}). The experts disagree about him more than anyone else you're
+        starting.</div>`).join("")}
+    </div>` : ""}
+
+    ${sourceCard()}`;
+}
+
+function slotRow(slot, p, bench) {
+  if (!p) return `<div class="slot ${bench ? "bench" : ""}">
+    <div class="slot-lbl">${esc(slot)}</div>
+    <div class="pmeta">empty — no eligible player with a projection</div><div></div></div>`;
+  // FantasyPros weekly grades are only shown while they cover the week we're
+  // projecting — the source file lags by a week early in the cycle.
+  const wkFresh = S.meta.weekly_covers_week === S.meta.upcoming_week;
+  const badge = (wkFresh && p.wk_grade) ? `<span class="chip ${
+    /^A/.test(p.wk_grade) ? "good" : /^B/.test(p.wk_grade) ? "" : /^C/.test(p.wk_grade) ? "warn" : "bad"
+  }">${esc(p.wk_grade)}</span>` : "";
+  return `<div class="slot ${bench ? "bench" : ""}" data-player="${esc(p.id)}" tabindex="0">
+    <div class="slot-lbl">${esc(slot === "SUPER_FLEX" ? "SFLX" : slot === "DEF" ? "D/ST" : slot)}</div>
+    <div><div class="pname">${nameCell(p)}${badge}</div>
+      <div class="pmeta mono">${esc(p.team)} ${oppTxt(p)}${
+        seasonPPG(p) != null ? ` · ${fmt(seasonPPG(p))} ppg` : ""}${
+        (wkFresh && p.wk_pos_rank) ? ` · FP ${esc(p.wk_pos_rank)}` : ""}</div></div>
+    <div class="pproj" title="${projExact(p)
+      ? "Computed from a projected stat line under this league's scoring"
+      : p.pstats
+        ? "Sacko Shield model estimate — its stat line is this league's scoring applied to his own per-game rates, not a projection feed"
+        : "Sacko Shield model estimate — no stat line for this player"}">${fmt(pj(p))}${
+      projExact(p) ? "" : `<span class="est" aria-label="model estimate">~</span>`}</div>
+  </div>`;
+}
+
+const tile = (lbl, big, sub) => `<div class="tile"><div class="lbl">${esc(lbl)}</div>
+  <div class="big">${big}</div><div class="sub">${esc(sub)}</div></div>`;
+
+function medianProj() {
+  const v = S.league.rosters.map(r => teamTotal(r.players, S.league)).sort((a, b) => a - b);
+  if (!v.length) return 0;
+  const m = Math.floor(v.length / 2);
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+}
+
+/** Your record, plus where this week's projection sits in the league. */
+function matchupLine(r) {
+  const all = S.league.rosters.map(x => teamTotal(x.players, S.league))
+                              .sort((a, b) => b - a);
+  const mine = teamTotal(r.players, S.league);
+  const rank = all.findIndex(v => v <= mine) + 1;
+  return `${r.wins}-${r.losses} <span style="font-size:13px; color:var(--muted)">· ${
+    rank}${["th","st","nd","rd"][rank % 10 > 3 || (rank > 10 && rank < 14) ? 0 : rank % 10]
+    } proj</span>`;
+}
+
+/* --------------------------------------------------------------- 2. waivers */
+function renderWaiver() {
+  const lg = S.league;
+  if (!hasRosters(lg)) { renderStreamBoard(); return; }
+  const rostered = new Set(lg.rosters.flatMap(r => r.players));
+  const r = me();
+  const needs = rosterNeeds(r.players, lg);
+  const mine = positionStrength(r.players, lg);
+
+  const f = FILT.waiver;
+  const ownerOf = new Map();
+  lg.rosters.forEach(t => t.players.forEach(i => ownerOf.set(i, t)));
+
+  let pool = S.players.filter(waiverWorthy);
+  if (f.avail === "fa") pool = pool.filter(p => !rostered.has(p.id));
+  else if (f.avail === "mine") pool = pool.filter(p => (ownerOf.get(p.id) || {}).id === r.id);
+  else if (f.avail === "others")
+    pool = pool.filter(p => rostered.has(p.id) && (ownerOf.get(p.id) || {}).id !== r.id);
+  pool = baseFilter("waiver", pool);
+  if (f.needs) pool = pool.filter(p => ["need", "thin"].includes((needs[p.pos] || {}).label));
+  if (f.minProj) pool = pool.filter(p => (pj(p) ?? 0) >= f.minProj);
+
+  const poolTotal = pool.length;
+  const fa = sortBy(pool.map(p => ({ ...p, ws: waiverScore(p) })), f.sort, f.dir,
+    (p, k) => k === "ws" ? p.ws : k === "proj" ? pj(p) : k === "par" ? parOf(p)
+      : k === "poe" ? poeOf(p, true) : k === "name" ? p.name : p[k]).slice(0, 80);
+
+  // droppable: your worst assets by dynasty value that aren't starting
+  const { lineup } = optimalLineup(r.players, lg);
+  const starting = new Set(lineup.filter(Boolean).map(p => p.id));
+  const drops = r.players.map(i => S.byId.get(i)).filter(Boolean)
+    .filter(p => !starting.has(p.id))
+    .sort((a, b) => (val(a) || 0) - (val(b) || 0)).slice(0, 5);
+
+  $("#p-waiver").innerHTML = `
+    ${rosterSourceBanner()}
+    <div class="card pad stack">
+      <div><span class="eyebrow">${esc(r.name)}</span>
+        <div class="h-sec">Where your roster actually needs help</div></div>
+      <div class="grid g2">
+        ${gradedPositions(lg).map(pos => {
+          const n = needs[pos], c = n.label === "need" ? "bad" : n.label === "thin" ? "warn"
+                  : n.label === "strength" ? "good" : "";
+          return `<div class="row" style="justify-content:space-between">
+            <div class="row" style="gap:7px"><span class="pos ${pos}">${pos}</span>
+              <span class="chip ${c}">${n.label}</span></div>
+            <div class="row" style="gap:8px; flex:1; justify-content:flex-end">
+              <div class="bar" style="flex:1; max-width:120px"><i style="width:${
+                Math.round(n.pct * 100)}%"></i></div>
+              <span class="mono sub">${Math.round(n.pct * 100)}%</span></div>
+          </div>`;
+        }).join("")}
+      </div>
+      <div class="sub">Percentile against the other ${lg.teams - 1} rosters, on your top
+        ${gradedPositions(lg).map(p => `${p} ${POS_DEPTH[p] || 1}`).join(" / ")} at each spot.
+        Kickers and defenses are graded on what they project to score, not on
+        dynasty value — nobody holds those.</div>
+    </div>
+
+    <div class="card">
+      <div class="pad stack" style="border-bottom:1px solid var(--line)">
+        <div class="row" style="justify-content:space-between">
+          <div><span class="eyebrow">${f.avail === "fa" ? "Free agents"
+            : f.avail === "mine" ? "Your roster" : f.avail === "others"
+            ? "Other teams' rosters" : "Every player"}</span>
+            <div class="h-sec">Best available, ranked</div></div>
+          <button class="btn sm ghost" data-export="waivers">Export</button>
+        </div>
+        ${filterBar("waiver", {
+          controls: `
+            <select data-f="waiver:avail" aria-label="Availability">
+              <option value="fa" ${f.avail === "fa" ? "selected" : ""}>Free agents</option>
+              <option value="others" ${f.avail === "others" ? "selected" : ""}>On other teams</option>
+              <option value="mine" ${f.avail === "mine" ? "selected" : ""}>On my roster</option>
+              <option value="all" ${f.avail === "all" ? "selected" : ""}>Everyone</option>
+            </select>
+            <input type="number" data-f="waiver:minProj" value="${f.minProj || ""}"
+              min="0" max="40" step="1" placeholder="Min projection"
+              aria-label="Minimum projected points">
+            <label class="ftoggle"><input type="checkbox" data-f="waiver:needs"
+              ${f.needs ? "checked" : ""}> Fills a need</label>`,
+          count: `${poolTotal} player${poolTotal === 1 ? "" : "s"} match${
+            poolTotal === 1 ? "es" : ""}${poolTotal > 80 ? " — showing the top 80" : ""}.`
+        })}
+      </div>
+      <div class="pad sub" style="padding-top:0">
+        “vs repl” is projected points above the last startable player at that
+        position in a ${lg.teams}-team league
+        (${["QB","RB","WR","TE"].map(x => `${x} ${fmt(replacement()[x])}`).join(" · ")}).
+        It is the only fair way to line a tight end up against a receiver.
+      </div>
+      <div class="tw"><table id="waiverTable"><thead><tr>
+        ${[["name","Player","t"],["ws","Score","n"],[null,"FAAB","t"],
+           ["proj","Wk " + S.meta.upcoming_week,"n"],["par","vs repl","n"],
+           ["own","Own%","n"],["snap_last","Snap→","n"],["ppg","PPG","n"],
+           ["poe","POE/g","n"],["tgt_share","Tgt%","n"],[null,"Fits","t"]].map(([k,l,t]) =>
+          k ? `<th class="${t === "n" ? "n" : ""}" data-sort="${k}">${l}${
+            f.sort === k ? ` <span class="sortmark">${f.dir === -1 ? "▼" : "▲"}</span>` : ""}</th>`
+            : `<th class="${t === "n" ? "n" : ""}">${l}</th>`).join("")}
+      </tr></thead><tbody>
+      ${fa.map(p => {
+        const fit = needs[p.pos];
+        return `<tr data-player="${esc(p.id)}" tabindex="0">
+          <td class="nm">${nameCell(p)}<div class="pmeta mono">${esc(p.team)} ${oppTxt(p)}</div></td>
+          <td class="n"><b>${p.ws}</b></td>
+          <td>${esc(faabPct(p.ws, p))}</td>
+          <td class="n">${fmt(pj(p))}</td>
+          <td class="n" style="color:${(parOf(p) ?? 0) > 0 ? "var(--good)" : "var(--muted)"}">${
+            parOf(p) == null ? "—" : ((parOf(p) > 0 ? "+" : "") + fmt(parOf(p)))}</td>
+          <td class="n">${p.own != null ? fmt(p.own, 0) : "—"}</td>
+          <td class="n">${p.snap_last != null ? fmt(p.snap_last, 0) : "—"}</td>
+          <td class="n">${fmt(seasonPPG(p))}</td>
+          <td class="n" title="${p.dst_ctx
+            ? esc(p.opp + " is implied for " + p.dst_ctx.opp_implied + " points")
+            : "Points over expected per game, from his opportunities"}"
+            style="color:${poeOf(p, true) == null ? "var(--muted)"
+              : poeOf(p, true) > 1 ? "var(--bad)" : poeOf(p, true) < -1 ? "var(--good)"
+              : "var(--ink2)"}">${p.dst_ctx ? fmt(p.dst_ctx.opp_implied, 0) + " imp"
+              : poeOf(p, true) == null ? "—"
+              : (poeOf(p, true) > 0 ? "+" : "") + fmt(poeOf(p, true))}</td>
+          <td class="n">${p.tgt_share != null ? fmt(p.tgt_share, 0) : "—"}</td>
+          <td>${fit ? `<span class="chip ${fit.label === "need" ? "bad"
+            : fit.label === "thin" ? "warn" : ""}">${fit.label}</span>` : ""}</td>
+        </tr>`; }).join("")}
+      </tbody></table></div>
+      ${fa.length ? "" : `<div class="empty">No players match these filters.
+        <button class="btn ghost sm" data-fclear="waiver">Clear them</button></div>`}
+    </div>
+
+    <div class="card pad stack">
+      <div><span class="eyebrow">Roster space</span>
+        <div class="h-sec">Cheapest players to move on from</div></div>
+      ${drops.map(p => `<div class="row" style="justify-content:space-between">
+        <div class="pname">${nameCell(p)}</div>
+        <div class="row" style="gap:10px"><span class="sub mono">${
+          val(p) ? fmt(val(p), 0) + " " + valueShort() : "no value"}</span>
+        <span class="sub mono">${seasonPPG(p) != null ? fmt(seasonPPG(p)) + " ppg" : ""}</span></div>
+      </div>`).join("")}
+      <div class="sub">Lowest ${valueLabel()} among players not in your optimal
+        lineup.${isDynasty(S.league)
+          ? " In a dynasty league, check the age column before dropping anyone young."
+          : " Nothing here is priced on future seasons — this is a " +
+            esc(S.league.type) + " league."}</div>
+    </div>
+
+    ${sourceCard()}`;
+
+  wireFilters("waiver", renderWaiver);
+}
+
+/* ---------------------------------------------------------------- 3. trades */
+function renderTrade() {
+  const lg = S.league, sf = isSuperflex(lg);
+  if (!hasRosters(lg)) { $("#p-trade").innerHTML = noRosters("The trade calculator"); return; }
+  const r = me();
+  const needs = rosterNeeds(r.players, lg);
+  const sumSide = side => S.trade[side].reduce((a, x) => a + (x.v || 0), 0);
+  const a = sumSide("a"), b = sumSide("b"), tot = a + b || 1;
+  const diff = a - b, pct = Math.abs(diff) / Math.max(a, b, 1);
+  const verdict = pct < 0.06 ? ["even", "Dead even — this is a fair-value swap."]
+    : pct < 0.16 ? [(diff > 0 ? "you send more" : "you get more"),
+        `Inside the normal negotiating band (${Math.round(pct * 100)}% gap).`]
+    : [(diff > 0 ? "you lose value" : "you win value"),
+        `${Math.round(pct * 100)}% gap — that is a real difference, not a rounding error.`];
+
+  $("#p-trade").innerHTML = `
+    <div class="card pad stack">
+      <div class="row" style="justify-content:space-between">
+        <div><span class="eyebrow">${esc(lg.type)} · ${
+            isDynasty(lg) ? (sf ? "superflex" : "1QB") + " values"
+                          : "rest-of-season points"}</span>
+          <div class="h-sec">Trade calculator</div></div>
+        <div class="row" style="gap:6px">
+          <span class="chip acc">${isDynasty(lg)
+            ? (sf ? "2QB / SF pricing" : "1QB pricing")
+            : "priced on the rest of this season"}</span>
+          ${(a || b) ? `<button class="btn ghost sm" id="tradeClear">Clear</button>` : ""}
+        </div>
+      </div>
+      ${S.tradeSeeded ? `<div class="sub">An example deal to show the tool working —
+        clear it and build your own.</div>` : ""}
+      <div class="grid g2">
+        <div><div class="eyebrow" style="margin-bottom:6px">You send</div>
+          <div class="trade-side" id="sideA">${sideHTML("a")}</div>
+          <div class="row" style="margin-top:8px"><input type="search" id="searchA"
+            placeholder="Add a player or pick…" aria-label="Add to your side"></div>
+          <div id="resA"></div>
+          <div class="row mono" style="margin-top:8px; justify-content:space-between">
+            <span class="sub">Total</span><b>${fmt(a, 0)}</b></div>
+        </div>
+        <div><div class="eyebrow" style="margin-bottom:6px">You get</div>
+          <div class="trade-side" id="sideB">${sideHTML("b")}</div>
+          <div class="row" style="margin-top:8px"><input type="search" id="searchB"
+            placeholder="Add a player or pick…" aria-label="Add to their side"></div>
+          <div id="resB"></div>
+          <div class="row mono" style="margin-top:8px; justify-content:space-between">
+            <span class="sub">Total</span><b>${fmt(b, 0)}</b></div>
+        </div>
+      </div>
+
+      ${(a || b) ? `
+      <hr class="divider">
+      <div class="stack" style="gap:9px">
+        <div class="scale" role="img" aria-label="Value split">
+          <i style="left:0; width:${Math.round(a / tot * 100)}%"></i><u></u></div>
+        <div class="row" style="justify-content:space-between">
+          <span class="chip ${pct < 0.06 ? "good" : diff > 0 ? "bad" : "good"}">${esc(verdict[0])}</span>
+          <span class="mono sub">${fmt(a, 0)} out · ${fmt(b, 0)} in · ${
+            diff > 0 ? "−" : "+"}${fmt(Math.abs(diff), 0)}</span>
+        </div>
+        <div>${esc(verdict[1])}</div>
+        ${tradeFitNotes(needs)}
+      </div>` : `<div class="empty">Add players to either side to price the deal.</div>`}
+    </div>
+
+    ${!isDynasty(lg) ? "" : `
+    <div class="card pad stack">
+      <div><span class="eyebrow">Reference</span>
+        <div class="h-sec">What picks are worth right now</div></div>
+      <div class="tw"><table><thead><tr><th>Pick</th><th class="n">Value</th>
+        <th>Equivalent player</th></tr></thead><tbody>
+        ${S.picks.filter(pk => (+pk.pick.slice(0, 4)) > S.meta.season)
+          .sort((x, y) => ((sf ? y.v_sf : y.v_1qb) || 0) - ((sf ? x.v_sf : x.v_1qb) || 0))
+          .slice(0, 16).map(pk => {
+          const v = sf ? pk.v_sf : pk.v_1qb;
+          const near = S.players.filter(x => val(x))
+            .sort((x, y) => Math.abs(val(x) - v) - Math.abs(val(y) - v))[0];
+          return `<tr><td class="nm">${esc(pk.pick)}</td><td class="n">${fmt(v, 0)}</td>
+            <td>${near ? `<span class="pos ${near.pos}">${near.pos}</span> ${esc(near.name)}` : "—"}</td></tr>`;
+        }).join("")}
+      </tbody></table></div>
+    </div>`}
+
+    ${isDynasty(lg) ? "" : `<div class="card pad stack">
+      <div><span class="eyebrow">Why no pick values</span>
+        <div class="h-sec">This is a ${esc(lg.type)} league</div></div>
+      <div class="sub">Rookie picks and dynasty prices don't apply — there is no
+        next season to trade into. Players are valued on what they project to
+        score between now and Week ${S.meta.last_week || 18}, above a replacement
+        starter at their position, under this league's own scoring.</div>
+    </div>`}
+
+    ${sourceCard()}`;
+
+  ["A", "B"].forEach(k => {
+    const inp = $("#search" + k);
+    inp.addEventListener("input", () => tradeSearch(k.toLowerCase(), inp.value));
+  });
+  $$("[data-rm]").forEach(b => b.addEventListener("click", () => {
+    const [side, i] = b.dataset.rm.split(":");
+    S.trade[side].splice(+i, 1); S.tradeSeeded = false; renderTrade();
+  }));
+  $("#tradeClear")?.addEventListener("click", () => {
+    S.trade = { a: [], b: [] }; S.tradeSeeded = false; renderTrade();
+  });
+}
+
+/** Open the calculator on a plausible deal rather than two empty boxes. */
+function seedTrade() {
+  if (S.trade.a.length || S.trade.b.length) return;
+  const mine = me().players.map(i => S.byId.get(i)).filter(p => p && val(p))
+                 .sort((x, y) => val(y) - val(x));
+  if (mine.length < 3) return;
+  const out = mine[1];                       // your second-best asset
+  const held = new Set(me().players);
+  const want = val(out) * 0.85;
+  const target = S.players
+    .filter(p => val(p) && !held.has(p.id) && p.pos !== out.pos)
+    .sort((x, y) => Math.abs(val(x) - want) - Math.abs(val(y) - want))[0];
+  if (!target) return;
+  S.trade.a = [{ name: out.name, pos: out.pos, v: val(out) }];
+  S.trade.b = [{ name: target.name, pos: target.pos, v: val(target) }];
+  S.tradeSeeded = true;
+}
+
+function sideHTML(side) {
+  const list = S.trade[side];
+  if (!list.length) return `<div class="sub" style="padding:14px 4px; text-align:center">nothing yet</div>`;
+  return list.map((x, i) => `<div class="tchip">
+    <span>${x.pos ? `<span class="pos ${x.pos}">${x.pos}</span> ` : ""}${esc(x.name)}</span>
+    <span class="row" style="gap:8px"><b class="mono">${fmt(x.v, 0)}</b>
+    <button data-rm="${side}:${i}" aria-label="Remove ${esc(x.name)}">×</button></span>
+  </div>`).join("");
+}
+
+function tradeSearch(side, q) {
+  const box = $("#res" + side.toUpperCase());
+  q = q.trim().toLowerCase();
+  if (q.length < 2) { box.innerHTML = ""; return; }
+  const sf = isSuperflex(S.league);
+  const hits = [
+    ...S.players.filter(p => val(p) && p.name.toLowerCase().includes(q))
+      .sort((x, y) => val(y) - val(x)).slice(0, 6)
+      .map(p => ({ name: p.name, pos: p.pos, v: val(p) })),
+    ...(isDynasty(S.league)
+      ? S.picks.filter(p => p.pick.toLowerCase().includes(q)).slice(0, 4)
+          .map(p => ({ name: p.pick, pos: null, v: sf ? p.v_sf : p.v_1qb }))
+      : []),
+  ];
+  box.innerHTML = hits.length ? `<div class="card" style="margin-top:6px">${hits.map((h, i) =>
+    `<button class="btn ghost sm" style="display:block; width:100%; text-align:left; border:0; border-bottom:1px solid var(--line); border-radius:0"
+      data-add="${side}:${i}">${h.pos ? `<span class="pos ${h.pos}">${h.pos}</span> ` : ""}${
+      esc(h.name)} <b class="mono" style="float:right">${fmt(h.v, 0)}</b></button>`).join("")}</div>`
+    : `<div class="sub" style="padding:6px 2px">no match</div>`;
+  $$("[data-add]", box).forEach(b => b.addEventListener("click", () => {
+    const [s, i] = b.dataset.add.split(":");
+    S.trade[s].push(hits[+i]); renderTrade();
+  }));
+}
+
+function tradeFitNotes(needs) {
+  const out = [];
+  for (const side of ["a", "b"]) {
+    for (const x of S.trade[side]) {
+      if (!x.pos || !needs[x.pos]) continue;
+      const n = needs[x.pos];
+      if (side === "b" && n.label === "need")
+        out.push(`${x.name} lands at your weakest spot (${x.pos}) — worth paying a small premium for.`);
+      if (side === "a" && n.label === "need")
+        out.push(`You are already short at ${x.pos}; sending ${x.name} makes that worse.`);
+      if (side === "a" && n.label === "strength")
+        out.push(`${x.pos} is your deepest position — ${x.name} is the right kind of player to sell.`);
+    }
+  }
+  return out.length ? `<div class="stack" style="gap:6px">${
+    [...new Set(out)].map(t => `<div class="note">${esc(t)}</div>`).join("")}</div>` : "";
+}
+
+/* ---------------------------------------------------------------- 4. league */
+function renderLeague() {
+  const lg = S.league;
+  if (!hasRosters(lg)) { renderStandingsOnly(); return; }
+  const rows = lg.rosters.map(r => {
+    const st = positionStrength(r.players, lg);
+    const dyn = r.players.reduce((a, i) => a + (val(S.byId.get(i)) || 0), 0);
+    const young = r.players.map(i => S.byId.get(i)).filter(Boolean)
+      .filter(p => (p.age ?? 99) <= 25).reduce((a, p) => a + (val(p) || 0), 0);
+    return { ...r, proj: teamTotal(r.players, lg), dyn, young, st };
+  });
+  const maxDyn = Math.max(...rows.map(r => r.dyn), 1);
+  const maxProj = Math.max(...rows.map(r => r.proj), 1);
+  // power = this week's ceiling and long-term assets, weighted by league type
+  const w = lg.type === "redraft" ? 0.85 : lg.type === "keeper" ? 0.6 : 0.45;
+  rows.forEach(r => r.raw = w * (r.proj / maxProj) + (1 - w) * (r.dyn / maxDyn));
+  // stretch across the league so the gaps are readable, not all clustered at 90
+  const lo = Math.min(...rows.map(r => r.raw)), hi = Math.max(...rows.map(r => r.raw));
+  rows.forEach(r => r.power = Math.round(
+    hi > lo ? 40 + 60 * (r.raw - lo) / (hi - lo) : 70));
+  rows.sort((a, b) => b.power - a.power);
+
+  const posMax = {};
+  for (const pos of ["QB", "RB", "WR", "TE"])
+    posMax[pos] = Math.max(...rows.map(r => r.st[pos].top), 1);
+
+  $("#p-league").innerHTML = `
+    <div class="card">
+      <div class="pad row" style="justify-content:space-between; border-bottom:1px solid var(--line)">
+        <div><span class="eyebrow">${esc(lg.name)} · ${lg.teams} teams · ${esc(lg.type)}</span>
+          <div class="h-sec">Power rankings</div></div>
+        <button class="btn sm ghost" data-export="league">Export</button>
+      </div>
+      <div class="tw"><table><thead><tr>
+        <th>#</th><th>Team</th><th class="n">Power</th><th class="n">W-L</th>
+        <th class="n">Wk ${S.meta.upcoming_week}</th>
+        <th class="n">${isDynasty(lg) ? "Dynasty value" : "ROS pts"}</th>
+        ${isDynasty(lg) ? `<th class="n">U25 value</th>` : ""}<th>Best asset</th>
+      </tr></thead><tbody>
+      ${rows.map((r, i) => `<tr${r.id === S.myTeam
+        ? ' style="background:var(--brand-soft)"' : ""}>
+        <td class="n">${i + 1}</td>
+        <td class="nm">${esc(r.name)}${r.id === S.myTeam
+          ? ' <span class="chip acc">you</span>' : ""}</td>
+        <td class="n"><b>${r.power}</b></td>
+        <td class="n">${r.wins}-${r.losses}</td>
+        <td class="n">${fmt(r.proj, 1)}</td>
+        <td class="n">${fmt(r.dyn, 0)}</td>
+        ${isDynasty(lg) ? `<td class="n">${fmt(r.young, 0)}</td>` : ""}
+        <td>${bestAsset(r)}</td>
+      </tr>`).join("")}
+      </tbody></table></div>
+      <div class="pad sub">Power blends this week's projected ceiling with total
+        ${valueLabel()}, weighted ${Math.round(w * 100)}/${Math.round((1 - w) * 100)}
+        for a ${esc(lg.type)} league. ${isDynasty(lg)
+          ? "Nothing here is priced on one week alone."
+          : "No dynasty value is used — this league has no future seasons."}</div>
+    </div>
+
+    <div class="card">
+      <div class="pad" style="border-bottom:1px solid var(--line)">
+        <span class="eyebrow">Roster construction</span>
+        <div class="h-sec">Positional strength across the league</div></div>
+      <div class="tw"><table><thead><tr><th>Team</th>
+        ${["QB","RB","WR","TE"].map(p => `<th class="n">${p}</th>`).join("")}
+      </tr></thead><tbody>
+      ${rows.map(r => `<tr${r.id === S.myTeam ? ' style="background:var(--brand-soft)"' : ""}>
+        <td class="nm">${esc(r.name)}</td>
+        ${["QB","RB","WR","TE"].map(pos => {
+          const share = r.st[pos].top / posMax[pos];
+          return `<td class="n"><div class="row" style="justify-content:flex-end; gap:7px">
+            <div class="bar" style="width:52px"><i style="width:${Math.round(share * 100)}%"></i></div>
+            <span style="width:34px">${fmt(r.st[pos].top / 1000, 1)}k</span></div></td>`;
+        }).join("")}
+      </tr>`).join("")}
+      </tbody></table></div>
+    </div>
+
+    ${sourceCard()}`;
+}
+
+/**
+ * A waiver board for a league whose rosters we can't read.
+ *
+ * Ranking a defense or a kicker for streaming doesn't need anyone's roster —
+ * it needs this week's matchup and this league's scoring, both of which are in
+ * hand. What's missing is who is actually free, so ownership across all leagues
+ * stands in for it and the card says that is what it is. This is most of the
+ * value of a waiver board for exactly the two positions people stream.
+ */
+function renderStreamBoard() {
+  const lg = S.league;
+  const f = FILT.waiver;
+  const graded = gradedPositions(lg);
+  const streamers = graded.filter(p => p === "DST" || p === "K");
+  const pos = f.pos.length ? f.pos : (streamers.length ? streamers : graded);
+
+  let pool = baseFilter("waiver", S.players.filter(p => pj(p) != null))
+    .filter(p => pos.includes(p.pos));
+  const total = pool.length;
+
+  // Grouped by position, not pooled into one ranking. Kickers outscore defenses
+  // on raw points, so a single sorted list buries all 32 defenses below all 32
+  // kickers — which is the opposite of useful when the whole point is choosing
+  // one of each. Defenses lead because they are the harder call.
+  const ORDER = ["DST", "K", "QB", "RB", "WR", "TE"];
+  const groups = ORDER.filter(x => pos.includes(x))
+    .map(x => ({ pos: x, list: pool.filter(p => p.pos === x)
+        .sort((a, b) => (pj(b) || 0) - (pj(a) || 0)) }))
+    .filter(g => g.list.length);
+  const perGroup = groups.length > 2 ? 15 : 32;
+
+  $("#p-waiver").innerHTML = `
+    <div class="card pad stack">
+      <div><span class="eyebrow">${esc(lg.platform)} · ${esc(lg.name)}</span>
+        <div class="h-sec">Streaming board</div></div>
+      <div class="note">${esc(lg.note || "This league's rosters aren't loaded.")}</div>
+      <div class="sub">So this can't tell you who is free in your league. It ranks
+        every ${streamers.length ? streamers.join(" and ") : "player"} by what they
+        project to score <b>under this league's scoring</b>, with how widely each is
+        rostered across all leagues as a stand-in for availability — which is most of
+        what a streaming decision needs anyway.</div>
+      ${filterBar("waiver", {
+        controls: "",
+        count: `${total} ranked across ${groups.length} position${
+                groups.length === 1 ? "" : "s"}.`
+      })}
+    </div>
+
+    ${groups.map(g => `<div class="card">
+      <div class="pad" style="border-bottom:1px solid var(--line)">
+        <span class="eyebrow">${g.list.length} ranked</span>
+        <div class="h-sec">${g.pos === "DST" ? "Defenses" : g.pos === "K" ? "Kickers"
+          : g.pos + "s"} this week</div>
+        ${g.pos === "DST" ? `<div class="sub">Ordered by what they project under this
+          league's own points-allowed tiers. The implied total is what the betting
+          market expects their opponent to score — the biggest single input.</div>` : ""}
+      </div>
+      <div class="tw"><table><thead><tr>
+        <th>Player</th><th class="n">Wk ${S.meta.upcoming_week}</th>
+        <th>${g.pos === "DST" ? "Opponent" : "Matchup"}</th>
+        <th class="n">Own%</th><th class="n">PPG</th>
+      </tr></thead><tbody>
+      ${g.list.slice(0, perGroup).map(p => `<tr data-player="${esc(p.id)}" tabindex="0">
+        <td class="nm">${nameCell(p)}</td>
+        <td class="n"><b>${fmt(pj(p))}</b></td>
+        <td class="sub">${p.dst_ctx
+          ? `${esc(p.opp)} implied ${fmt(p.dst_ctx.opp_implied, 0)}`
+          : esc(oppTxt(p))}</td>
+        <td class="n">${p.own != null ? fmt(p.own, 0) : "—"}</td>
+        <td class="n">${fmt(seasonPPG(p))}</td>
+      </tr>`).join("")}
+      </tbody></table></div>
+      ${g.list.length > perGroup
+        ? `<div class="pad sub">Showing the top ${perGroup} of ${g.list.length}.</div>` : ""}
+    </div>`).join("")}
+    ${groups.length ? "" : `<div class="card"><div class="empty">Nothing matches these
+      filters. <button class="btn ghost sm" data-fclear="waiver">Clear them</button></div></div>`}
+
+    <div class="card pad stack">
+      <div><span class="eyebrow">To get the full board</span>
+        <div class="h-sec">Add your roster</div></div>
+      <div class="sub">Paste your roster in — copy it from ESPN in any format — and this
+        becomes a real waiver board: what your roster is short of, who to drop, and your
+        own defense and kicker shown against the alternatives. It takes about ten
+        seconds and it sticks.</div>
+      <div class="row">
+        <button class="btn sm" data-roster="${esc(lg.my_team || "")}">Add my roster</button>
+        ${lg.source === "espn" ? `<button class="btn ghost sm"
+          data-espn="${esc(lg.league_id)}">Try loading from ESPN</button>` : ""}
+      </div>
+    </div>
+
+    ${sourceCard()}`;
+
+  wireFilters("waiver", renderWaiver);
+}
+
+/** A league we know the standings for but not the rosters. */
+function renderStandingsOnly() {
+  const lg = S.league;
+  const rows = [...lg.rosters].sort((a, b) =>
+    (b.wins - a.wins) || (b.pf - a.pf));
+  $("#p-league").innerHTML = lg.status === "private" ? `
+    <div class="card pad stack">
+      <div><span class="eyebrow">ESPN · league ${esc(lg.league_id)}</span>
+        <div class="h-sec">${esc(lg.name)} is private</div></div>
+      <div class="note">${esc(lg.note)}</div>
+      <div class="sub">Those two cookies live in your browser once you're signed in to
+        ESPN. Link your computer to this Claude session and it can read them itself —
+        no copying strings on a phone.</div>
+    </div>` : `
+    <div class="card">
+      <div class="pad" style="border-bottom:1px solid var(--line)">
+        <span class="eyebrow">${esc(lg.platform)} · ${lg.teams} teams ·
+          ${esc(scoringLabel(lg.scoring))} ·
+          ${esc(lg.type)}</span>
+        <div class="h-sec">${esc(lg.name)} standings</div></div>
+      <div class="tw"><table><thead><tr>
+        <th>#</th><th>Team</th><th class="n">W-L</th><th class="n">Points for</th>
+        <th class="n">Per week</th><th>Manager</th>
+      </tr></thead><tbody>
+      ${rows.map((r, i) => `<tr${r.id === lg.my_team
+        ? ' style="background:var(--brand-soft)"' : ""}>
+        <td class="n">${i + 1}</td>
+        <td class="nm">${esc(r.name)}${r.id === lg.my_team
+          ? ' <span class="chip acc">you</span>' : ""}</td>
+        <td class="n">${r.wins}-${r.losses}</td>
+        <td class="n">${fmt(r.pf, 2)}</td>
+        <td class="n">${fmt(r.pf / Math.max(1, r.wins + r.losses), 1)}</td>
+        <td class="sub">${esc(r.owner || "—")}</td>
+      </tr>`).join("")}
+      </tbody></table></div>
+      <div class="pad"><div class="note">${esc(lg.note)}</div></div>
+    </div>
+
+    <div class="card pad stack">
+      <div><span class="eyebrow">Settings read from ESPN</span>
+        <div class="h-sec">${lg.scoring === "unknown"
+          ? "What ESPN would tell us" : "What this league plays"}</div></div>
+      ${lg.scoring === "unknown" ? `
+      <div class="kv"><span>Lineup</span><b>not readable</b></div>
+      <div class="kv"><span>Reception</span><b>not readable</b></div>` : `
+      <div class="kv"><span>Lineup</span><b>${esc(startingSlots(lg).join(" · "))}</b></div>
+      <div class="kv"><span>Bench</span><b>7</b></div>
+      <div class="kv"><span>Reception</span><b>${lg.scoring === "half" ? "0.5" : "1.0"} pt</b></div>`}
+      <div class="kv"><span>Teams</span><b>${lg.teams}</b></div>
+      <div class="kv"><span>League ID</span><b>${esc(lg.league_id)}</b></div>
+    </div>
+
+    ${sourceCard()}`;
+}
+
+function bestAsset(r) {
+  const p = r.players.map(i => S.byId.get(i)).filter(Boolean)
+    .sort((a, b) => (val(b) || 0) - (val(a) || 0))[0];
+  return p ? `<span class="pos ${p.pos}">${p.pos}</span> ${esc(p.name)}` : "—";
+}
+
+/* --------------------------------------------------------------- 5. players */
+/* Columns differ by format on purpose: a redraft manager has no use for a
+   rookie rank, and a dynasty manager shouldn't price a roster off one season's
+   remaining points. */
+const COLS_COMMON = [
+  ["name", "Player", "t"], ["team", "Tm", "t"],
+  ["proj", "Proj", "n"], ["ppg", "PPG", "n"], ["ecr_ros", "ROS", "n"],
+];
+const COLS_DYNASTY = [
+  ["age", "Age", "n"], ["v_sf", "SF val", "n"], ["v_1qb", "1QB val", "n"],
+  ["ecr_dyn_sf", "Dyn SF", "n"], ["ecr_rookie", "Rookie", "n"],
+];
+const COLS_REDRAFT = [
+  ["rosval", "ROS pts", "n"], ["rosppg", "ROS/g", "n"],
+];
+const COLS_TAIL = [
+  ["poe", "POE/g", "n"], ["tgt_share", "Tgt%", "n"], ["snap_last", "Snap%", "n"],
+  ["own", "Own%", "n"], ["tgt", "Tgt", "n"], ["rec", "Rec", "n"],
+  ["recyd", "RecYd", "n"], ["ruyd", "RuYd", "n"], ["payd", "PaYd", "n"],
+];
+const cols = () => COLS_COMMON
+  .concat(isDynasty(S.league) ? COLS_DYNASTY : COLS_REDRAFT)
+  .concat(COLS_TAIL);
+
+/** One cell value, by column key. */
+function cellOf(p, k) {
+  switch (k) {
+    case "proj": return pj(p);
+    case "ppg": return seasonPPG(p);
+    case "poe": return poeOf(p, true);
+    case "rosval": return rosValue(p);
+    case "rosppg": return rosPPG(p);
+    default: return p[k];
+  }
+}
+const ZERO_DP = new Set(["v_sf", "v_1qb", "tgt", "rec", "recyd", "ruyd", "payd",
+                         "own", "ecr_ros", "ecr_rookie", "rosval"]);
+function filteredPlayers() {
+  const f = FILT.players;
+  const rostered = new Map();
+  S.league.rosters.forEach(r => r.players.forEach(i => rostered.set(i, r.name)));
+  const known = hasRosters(S.league);
+  let list = S.players.map(p => ({
+    ...p, owner: known ? (rostered.get(p.id) || "Free agent") : "—" }));
+
+  list = baseFilter("players", list);
+  if (known && f.owner === "fa") list = list.filter(p => p.owner === "Free agent");
+  if (known && f.owner === "mine") list = list.filter(p => p.owner === me().name);
+  if (known && f.owner === "rostered") list = list.filter(p => p.owner !== "Free agent");
+  if (f.maxAge) list = list.filter(p => p.age != null && p.age <= f.maxAge);
+  if (f.inj === "healthy") list = list.filter(p => !p.inj);
+  else if (f.inj === "hurt") list = list.filter(p => !!p.inj);
+
+  return sortBy(list, f.sort, f.dir, (p, k) => k === "par" ? parOf(p) : cellOf(p, k));
+}
+
+function renderPlayers() {
+  const f = FILT.players;
+  // a saved sort from another league's column set would sort by nothing
+  if (!cols().some(([k]) => k === f.sort)) { f.sort = "proj"; f.dir = -1; }
+  const list = filteredPlayers();
+  $("#p-players").innerHTML = `
+    <div class="card pad stack">
+      <div class="row" style="justify-content:space-between">
+        <div><span class="eyebrow">${esc(S.league.name)}</span>
+          <div class="h-sec">Player table</div></div>
+        <button class="btn sm" data-export="players">Export to Excel</button>
+      </div>
+      ${filterBar("players", {
+        controls: `
+          <select data-f="players:owner" aria-label="Ownership"
+            ${hasRosters(S.league) ? "" : "disabled"}>
+            <option value="all" ${f.owner === "all" ? "selected" : ""}>Everyone</option>
+            <option value="fa" ${f.owner === "fa" ? "selected" : ""}>Free agents</option>
+            <option value="rostered" ${f.owner === "rostered" ? "selected" : ""}>Rostered</option>
+            <option value="mine" ${f.owner === "mine" ? "selected" : ""}>My roster</option>
+          </select>
+          <select data-f="players:inj" aria-label="Injury status">
+            <option value="any" ${f.inj === "any" ? "selected" : ""}>Any status</option>
+            <option value="healthy" ${f.inj === "healthy" ? "selected" : ""}>No injury flag</option>
+            <option value="hurt" ${f.inj === "hurt" ? "selected" : ""}>Flagged only</option>
+          </select>
+          <select data-f="players:maxAge" aria-label="Maximum age">
+            <option value="0" ${!f.maxAge ? "selected" : ""}>Any age</option>
+            ${[23,24,25,26,27].map(a =>
+              `<option value="${a}" ${+f.maxAge === a ? "selected" : ""}>${a} and under</option>`).join("")}
+          </select>`,
+        count: `${list.length} of ${S.players.length} players${
+          list.length > 250 ? " — showing the top 250" : ""}.`
+      })}
+    </div>
+    <div class="card"><div class="tw"><table><thead><tr>
+      ${cols().map(([k, l, t]) => `<th class="${t === "n" ? "n" : ""}" data-sort="${k}">${l}${
+        f.sort === k ? ` <span class="sortmark">${f.dir === -1 ? "▼" : "▲"}</span>` : ""}</th>`).join("")}
+      <th>Owner</th></tr></thead><tbody>
+      ${list.slice(0, 250).map(p => `<tr data-player="${esc(p.id)}" tabindex="0">
+        ${cols().map(([k]) => k === "name"
+          ? `<td class="nm">${nameCell(p)}</td>`
+          : k === "team" ? `<td>${esc(p.team)}</td>`
+          : `<td class="n">${cellOf(p, k) == null ? "—"
+              : fmt(cellOf(p, k), ZERO_DP.has(k) ? 0 : 1)}</td>`).join("")}
+        <td class="sub">${esc(p.owner)}</td></tr>`).join("")}
+    </tbody></table></div>
+    ${list.length > 250 ? `<div class="pad sub">Showing the top 250 — export for the
+      full ${list.length}.</div>` : ""}
+    ${list.length ? "" : `<div class="empty">Nothing matches these filters.
+      <button class="btn ghost sm" data-fclear="players">Clear them</button></div>`}</div>
+    ${sourceCard()}`;
+
+  wireFilters("players", renderPlayers);
+}
+
+/* ----------------------------------------------------------------- export */
+function sheetFrom(rows) { return XLSX.utils.json_to_sheet(rows); }
+
+async function exportXlsx(kind) {
+  if (typeof XLSX === "undefined") {
+    toast("The spreadsheet library didn't load — check the connection and reload.");
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const lg = S.league;
+  if (kind === "players" || kind === "all") {
+    XLSX.utils.book_append_sheet(wb, sheetFrom(filteredPlayers().map(p => ({
+      Player: p.name, Pos: p.pos, Team: p.team, Age: p.age, Owner: p.owner,
+      [`Wk${S.meta.upcoming_week} proj`]: pj(p), Opponent: p.opp || "", PPG: seasonPPG(p),
+      Games: p.g, "ROS rank": p.ecr_ros,
+      ...(isDynasty(lg)
+        ? { "Dynasty SF": p.v_sf, "Dynasty 1QB": p.v_1qb,
+            "Dyn SF rank": p.ecr_dyn_sf, "Rookie rank": p.ecr_rookie }
+        : { "ROS pts over replacement": rosValue(p),
+            "ROS pts per game": rosPPG(p), "Games left": weeksLeft(p) }),
+      "Own %": p.own,
+      "Target share %": p.tgt_share, "Snap % last": p.snap_last,
+      "POE per game": poeOf(p, true), "Expected pts": xfpOf(p), Targets: p.tgt,
+      Receptions: p.rec, "Rec yds": p.recyd, "Rec TD": p.rectd, Carries: p.car,
+      "Rush yds": p.ruyd, "Rush TD": p.rutd, "Pass yds": p.payd, "Pass TD": p.patd,
+      INT: p.int, Injury: p.inj || "", Bye: p.bye,
+    }))), "Players");
+  }
+  if (kind === "waivers" || kind === "all") {
+    const rostered = new Set(lg.rosters.flatMap(r => r.players));
+    XLSX.utils.book_append_sheet(wb, sheetFrom(baseFilter("waiver", S.players
+      .filter(p => FILT.waiver.avail === "fa" ? !rostered.has(p.id) : true)
+      .filter(waiverWorthy))
+      .map(p => ({ ...p, ws: waiverScore(p) }))
+      .sort((a, b) => b.ws - a.ws).slice(0, 150).map(p => ({
+        Player: p.name, Pos: p.pos, Team: p.team, "Waiver score": p.ws,
+        "FAAB guide": faabPct(p.ws, p), "ROS rank": p.ecr_ros,
+        [isDynasty(lg) ? "Dynasty value" : "ROS pts over replacement"]: val(p),
+        "Own %": p.own,
+        "Snap % last": p.snap_last, PPG: seasonPPG(p), "Target share %": p.tgt_share,
+        "POE per game": poeOf(p, true),
+        [`Wk${S.meta.upcoming_week} proj`]: pj(p), "Over replacement": parOf(p), Age: p.age,
+      }))), "Waivers");
+  }
+  if (kind === "players" || kind === "all") {
+    const dst = S.players.filter(p => p.pos === "DST");
+    if (dst.length) XLSX.utils.book_append_sheet(wb, sheetFrom(dst
+      .sort((a, b) => (pj(b) || 0) - (pj(a) || 0)).map(p => ({
+        Defense: p.name, Team: p.team,
+        [`Wk${S.meta.upcoming_week} proj`]: pj(p), Opponent: p.opp || "",
+        "Opponent implied pts": p.dst_ctx ? p.dst_ctx.opp_implied : null,
+        "Game total": p.dst_ctx ? p.dst_ctx.total : null,
+        PPG: seasonPPG(p), Games: p.g, "Pts allowed/g": p.pa_pg, Sacks: p.sacks,
+        INT: p.ints, "Fumbles rec": p.fumbles_rec, "Def TD": p.def_tds,
+        Safeties: p.safeties, "Blocked kicks": p.blocks,
+        "ROS rank": p.ecr_ros, "Own %": p.own, Bye: p.bye,
+      }))), "Defenses");
+  }
+  if (kind === "league" || kind === "all") {
+    XLSX.utils.book_append_sheet(wb, sheetFrom(lg.rosters.map(r => {
+      const st = positionStrength(r.players, lg);
+      return {
+        Team: r.name, W: r.wins, L: r.losses, PF: r.pf, PA: r.pa,
+        [`Wk${S.meta.upcoming_week} proj`]: +teamTotal(r.players, lg).toFixed(1),
+        [isDynasty(lg) ? "Dynasty value" : "ROS pts over replacement"]:
+          Math.round(r.players.reduce((a, i) => a + (val(S.byId.get(i)) || 0), 0)),
+        QB: st.QB.top, RB: st.RB.top, WR: st.WR.top, TE: st.TE.top,
+        Players: r.players.length,
+      };
+    })), "League");
+    XLSX.utils.book_append_sheet(wb, sheetFrom(lg.rosters.flatMap(r =>
+      r.players.map(i => S.byId.get(i)).filter(Boolean).map(p => ({
+        Team: r.name, Player: p.name, Pos: p.pos, NFL: p.team, Age: p.age,
+        ...(isDynasty(lg) ? { "Dynasty SF": p.v_sf } : { "ROS pts": rosValue(p) }),
+        PPG: seasonPPG(p), [`Wk${S.meta.upcoming_week} proj`]: pj(p),
+      })))), "Rosters");
+  }
+  const name = `sacko-shield-${kind}-wk${S.meta.upcoming_week}.xlsx`;
+  const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  if (!DOWNLOADS) { toast("Downloads aren't available in this view."); return; }
+  try {
+    await DOWNLOADS.save({ filename: name, data: buf });
+    toast("Saved " + name);
+  } catch (e) {
+    toast(e?.code === "declined" ? "Export cancelled" : "Couldn't save that file.");
+  }
+}
+
+/* ------------------------------------------------------------------- chrome */
+function sourceCard() {
+  const s = S.meta.sources || {}, c = S.meta.proj_counts || {};
+  const stale = S.meta.weekly_covers_week &&
+                S.meta.weekly_covers_week < S.meta.upcoming_week;
+  return `<div class="card pad stack" style="gap:8px">
+    <span class="eyebrow">Where these numbers come from</span>
+    <div class="srcline">
+      <b>Week ${esc(String(S.meta.proj_week ?? "—"))} projections</b> come from Sleeper's
+      projected stat lines for ${esc(String(c.sleeper ?? 0))} players. Anyone Sleeper doesn't
+      cover falls back to Sacko Shield's own model — marked <span class="est">~</span> —
+      which fits a positional curve to FantasyPros rest-of-season consensus
+      (<b>${esc(s.ecr || "—")}</b>) and adjusts for production through Week
+      <b>${esc(String(s.stats_through_week ?? "—"))}</b> and the opponent's fantasy
+      points allowed.<br>
+      The Week <b>${esc(String(s.injuries_week ?? "—"))}</b> injury report is a
+      <em>flag only</em> — it never benches anyone, because it is a week behind.<br>
+      Dynasty values are DynastyProcess, scraped <b>${esc(s.dynasty_values || "—")}</b>.
+      Production, snaps, injuries and schedule are nflverse.
+      ${stale ? ` FantasyPros weekly grades still cover Week
+        <b>${S.meta.weekly_covers_week}</b>, so they are hidden until they refresh.` : ""}
+    </div>
+    ${S.meta.proj_note ? `<div class="srcline">${esc(S.meta.proj_note)}</div>` : ""}
+    <div class="srcline">${(() => {
+      const lg = S.league, sc = scoringOf(lg);
+      if (!lg.scoring_settings) return `This league's scoring settings aren't
+        readable, so points use <b>standard scoring</b> — ${sc.pass_td} per passing
+        touchdown, ${sc.rec} per catch. Treat them as a guide, not as this
+        league's numbers.`;
+      if (lg.scoring_partial) return `Scoring was read from ESPN's own settings for
+        this league — <b>${sc.rec}</b> per catch, ${sc.pass_td} per passing touchdown,
+        ${sc.pass_yd} per passing yard. ESPN does not document its defensive stat
+        ids, so rather than guess one wrong and misprice every defense, the D/ST
+        and points-allowed values fall back to standard ones.`;
+      return `Points are computed from projected stat lines against
+        <b>this league's own scoring</b> — ${sc.pass_td} per passing touchdown,
+        ${sc.pass_yd} per passing yard, ${sc.rec} per catch, and its own D/ST
+        points-allowed tiers — not the 4-and-0.04 that public projections assume.`;
+    })()}</div>
+    <div class="srcline">Values use the <b>${valueLabel()}</b> basis${
+      isDynasty(S.league)
+        ? ", because this is a " + esc(S.league.type) + " league — no number here is "
+          + "priced on the rest of this season alone."
+        : ` — projected points above a replacement starter across the ${
+          (S.meta.last_week || 18) - S.meta.upcoming_week + 1} weeks left. No dynasty
+          value, rookie rank or pick price is used anywhere in this league.`}</div>
+    <div class="srcline">League: <b>${esc(S.league.platform)} · ${esc(S.league.name)}</b>${
+      hasRosters(S.league) ? " — rosters verified against the player database"
+        : " — standings only"}.</div>
+  </div>`;
+}
+
+let toastT;
+function toast(msg) {
+  let t = $(".toast");
+  if (!t) { t = document.createElement("div"); t.className = "toast"; document.body.appendChild(t); }
+  t.textContent = msg;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.remove(), 3200);
+}
+
+/* ---------------------------------------------------------- player detail */
+
+/** Weekly fantasy points. One series, so the heading names it — no legend.
+    Values are labelled directly because there are only a handful of weeks, and
+    only weeks he actually played appear: a filled zero is not a zero-point game. */
+function gameLogChart(p) {
+  // kickers and defenses carry per-week stat lines, so their weeks are scored
+  // by this league rather than scaled from a PPR total
+  const sc = scoringOf(S.league);
+  const pts = (p.wstats && sc) ? p.wstats.map(w => scoreLine(w, sc)) : (p.logs || []);
+  const wks = p.logw && p.logw.length ? p.logw : pts.map((_, i) => i + 1);
+  if (!pts.length) return `<div class="sub">No games played yet this season.</div>`;
+  const k = 1 - recRate();
+  const perGameRec = (p.pos === "DST" || p.pos === "K") ? 0
+    : (p.g ? (p.rec || 0) / p.g : 0);
+  // scale the shipped PPR log by how this league's season total compares
+  const exactWeeks = !!(p.wstats && sc);
+  const shipped = p.pts, restated = seasonPts(p);
+  const ratio = exactWeeks ? 1
+    : (shipped && restated && Math.abs(shipped) > 1) ? restated / shipped : 1;
+  const vals = pts.map(v => ((+v || 0) - k * perGameRec) * ratio);
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+
+  const hi = Math.max(...vals, avg, 1);
+  const lo = Math.min(...vals, 0);                       // negative games exist
+  const W = 100, H = 48, padX = 3, top = 9;
+  const span = (hi - lo) || 1;
+  const y = v => top + (hi - v) / span * (H - top);
+  const zero = y(0);
+  const slot = (W - padX * 2) / vals.length;
+  const bw = Math.min(slot * 0.62, 14);
+
+  return `
+    <svg viewBox="0 0 ${W} ${H + 11}" width="100%" height="112" role="img"
+         aria-label="Fantasy points by week" style="display:block">
+      <line x1="0" x2="${W}" y1="${y(avg)}" y2="${y(avg)}" stroke="var(--line)"
+            stroke-width="0.7" stroke-dasharray="2 2"></line>
+      ${lo < 0 ? `<line x1="0" x2="${W}" y1="${zero}" y2="${zero}"
+            stroke="var(--line)" stroke-width="0.5"></line>` : ""}
+      ${vals.map((v, i) => {
+        const cx = padX + slot * (i + 0.5), x = cx - bw / 2;
+        const yv = y(v), h = Math.max(1.2, Math.abs(yv - zero));
+        const yTop = v >= 0 ? yv : zero;
+        return `<rect x="${x}" y="${yTop}" width="${bw}" height="${h}" rx="1.6"
+                  fill="${v < 0 ? "var(--bad)" : v >= avg ? "var(--brand)" : "var(--sunk)"}"
+                ><title>Week ${wks[i]}: ${v.toFixed(1)} points${
+                  (p.pa_log && p.pa_log[i] != null)
+                    ? ` · allowed ${p.pa_log[i]}` : ""}</title></rect>
+          <text x="${cx}" y="${v >= 0 ? Math.max(6, yv - 2.4) : yTop + h + 5}"
+                text-anchor="middle" font-size="5.2" fill="var(--ink2)"
+                font-family="IBM Plex Mono, monospace">${v.toFixed(0)}</text>
+          <text x="${cx}" y="${H + 9}" text-anchor="middle" font-size="4.8"
+                fill="var(--muted)">W${wks[i]}</text>`;
+      }).join("")}
+    </svg>
+    <div class="sub">Dashed line is his ${fmt(avg)}-point average${
+      vals.length < 4 ? `, off ${vals.length} game${vals.length === 1 ? "" : "s"} —
+      too few to lean on` : ""}.${
+      wks.length && wks[wks.length - 1] < S.meta.completed_week
+        ? ` No stat line since Week ${wks[wks.length - 1]}.` : ""}</div>`;
+}
+
+/** Actual against what his opportunities were worth. Two bars, labelled. */
+function poeChart(p) {
+  const a = actualOf(p), x = xfpOf(p);
+  if (a == null || x == null || !p.g) return "";
+  const ag = a / p.g, xg = x / p.g, hi = Math.max(ag, xg, 1);
+  const bar = (label, v, color) => `
+    <div class="row" style="gap:8px; align-items:center">
+      <span class="sub" style="width:62px; flex:none">${label}</span>
+      <div class="bar" style="flex:1; height:10px"><i style="width:${
+        Math.round(v / hi * 100)}%; background:${color}"></i></div>
+      <b class="mono" style="width:42px; text-align:right">${fmt(v)}</b>
+    </div>`;
+  const d = ag - xg;
+  return `
+    <div class="stack" style="gap:6px">
+      ${bar("Actual", ag, "var(--brand)")}
+      ${bar("Expected", xg, "var(--muted)")}
+      <div class="note">${d >= 0
+        ? `Scoring <b>${fmt(d)}</b> more per game than his carries and targets are
+           worth at league-average efficiency. Good luck, a good offence, or both —
+           but it is the part most likely to fade.`
+        : `Scoring <b>${fmt(-d)}</b> <em>less</em> per game than his opportunities are
+           worth. The volume is there; the production hasn't followed yet.`}</div>
+    </div>`;
+}
+
+function openPlayer(id) {
+  const p = S.byId.get(id);
+  if (!p) return;
+  const lg = S.league;
+  const owner = hasRosters(lg)
+    ? (lg.rosters.find(r => r.players.includes(id)) || {}).name || "Free agent"
+    : null;
+  const dvp = p.opp && S.dvp[p.opp] ? S.dvp[p.opp][p.pos] : null;
+  const kv = (label, v, title) => v == null || v === "" ? "" :
+    `<div class="kv"${title ? ` title="${esc(title)}"` : ""}><span>${esc(label)}</span><b>${v}</b></div>`;
+
+  const el = document.createElement("div");
+  el.className = "sheet";
+  el.innerHTML = `<div class="sheet-in stack" role="dialog" aria-modal="true"
+      aria-label="${esc(p.name)}">
+    <div class="row" style="justify-content:space-between; align-items:flex-start; flex-wrap:nowrap; gap:10px">
+      <div style="min-width:0">
+        <div class="pname" style="font-size:18px">${nameCell(p)}</div>
+        <div class="sub">${esc(p.team)}${p.opp ? ` · ${oppTxt(p)} in Week ${
+          S.meta.upcoming_week}` : " · no game this week"}${
+          p.age ? ` · ${fmt(p.age)} yrs` : ""}${
+          owner ? ` · ${esc(owner)}` : ""}</div>
+      </div>
+      <button class="btn ghost sm" data-close style="flex:none">Close</button>
+    </div>
+
+    <div class="tilerow">
+      ${tile("Week " + S.meta.upcoming_week, fmt(pj(p)),
+        projExact(p) ? "from a projected stat line" : "model estimate")}
+      ${tile("Per game", fmt(seasonPPG(p)), `${p.g || 0} game${p.g === 1 ? "" : "s"}`)}
+      ${tile("Over replacement", (parOf(p) ?? 0) > 0 ? "+" + fmt(parOf(p)) : fmt(parOf(p)),
+        "vs a startable " + p.pos)}
+    </div>
+
+    <div class="card pad stack" style="gap:9px">
+      <span class="eyebrow">Week by week</span>
+      ${gameLogChart(p)}
+    </div>
+
+    ${poeChart(p) ? `<div class="card pad stack" style="gap:9px">
+      <span class="eyebrow">Production vs opportunity</span>
+      ${poeChart(p)}
+    </div>` : ""}
+
+    ${p.pos === "DST" ? `
+    <div class="card pad stack" style="gap:2px">
+      <span class="eyebrow" style="margin-bottom:5px">Season</span>
+      ${kv("Points allowed per game", p.pa_pg != null ? fmt(p.pa_pg, 1) : null)}
+      ${kv("Sacks", p.sacks || null)}
+      ${kv("Interceptions", p.ints || null)}
+      ${kv("Fumbles recovered", p.fumbles_rec || null)}
+      ${kv("Defensive touchdowns", p.def_tds || null)}
+      ${kv("Safeties", p.safeties || null)}
+      ${kv("Blocked kicks", p.blocks || null)}
+    </div>` : `
+    <div class="card pad stack" style="gap:2px">
+      <span class="eyebrow" style="margin-bottom:5px">Volume</span>
+      ${kv("Snap share", p.snap_last != null ? fmt(p.snap_last, 0) + "%" : null,
+           "Most recent game")}
+      ${kv("Snap share, season", p.snap != null ? fmt(p.snap, 0) + "%" : null)}
+      ${kv("Targets", p.tgt || null)}
+      ${kv("Target share", p.tgt_share != null ? fmt(p.tgt_share, 1) + "%" : null)}
+      ${kv("Receptions", p.rec || null)}
+      ${kv("Receiving yards", p.recyd || null)}
+      ${kv("Carries", p.car || null)}
+      ${kv("Rushing yards", p.ruyd || null)}
+      ${kv("Passing yards", p.payd || null)}
+      ${kv("Total touchdowns",
+           ((p.rectd || 0) + (p.rutd || 0) + (p.patd || 0)) || null)}
+      ${kv("WOPR", p.wopr != null ? fmt(p.wopr, 2) : null,
+           "Weighted share of targets and air yards")}
+    </div>`}
+
+    ${p.dst_ctx ? `<div class="card pad stack" style="gap:9px">
+      <span class="eyebrow">Why this projection</span>
+      <div class="kv"><span>${esc(p.opp)} implied points</span>
+        <b>${fmt(p.dst_ctx.opp_implied, 1)}</b></div>
+      <div class="kv"><span>Game total</span><b>${fmt(p.dst_ctx.total, 1)}</b></div>
+      <div class="kv"><span>Sacks per game</span><b>${fmt(p.dst_ctx.sack_rate, 1)}</b></div>
+      <div class="kv"><span>Takeaways per game</span><b>${fmt(p.dst_ctx.ta_rate, 1)}</b></div>
+      <div class="note">The betting market expects ${esc(p.opp)} to score about
+        <b>${fmt(p.dst_ctx.opp_implied, 0)}</b>. That is the single biggest input into a
+        defense's week — ${p.dst_ctx.opp_implied <= 19
+          ? "a low number, and the reason this one projects well"
+          : p.dst_ctx.opp_implied >= 25
+          ? "a high number, and the reason this one is hard to start"
+          : "a middling number, so the sacks and takeaways decide it"}. Sack and
+        takeaway rates are pulled toward the league average
+        (${fmt(S.meta.dst?.league_rates?.sacks_per_game, 1)} and
+        ${fmt(S.meta.dst?.league_rates?.takeaways_per_game, 1)}) because
+        ${p.g || 0} game${p.g === 1 ? "" : "s"} is a thin sample.</div>
+    </div>` : ""}
+
+    ${p.pos === "DST" || p.pos === "K" ? "" : `
+    <div class="card pad stack" style="gap:2px">
+      <span class="eyebrow" style="margin-bottom:5px">${
+        isDynasty(S.league) ? "Dynasty market" : "Rest of season"}</span>
+      ${isDynasty(S.league) ? `
+        ${kv("Dynasty value, superflex", p.v_sf ? fmt(p.v_sf, 0) : null)}
+        ${kv("Dynasty value, 1QB", p.v_1qb ? fmt(p.v_1qb, 0) : null)}
+        ${kv("Dynasty rank, superflex", p.ecr_dyn_sf ? fmt(p.ecr_dyn_sf, 0) : null)}
+        ${kv("Rookie rank", p.ecr_rookie ? fmt(p.ecr_rookie, 0) : null)}` : `
+        ${kv("Rest-of-season points over replacement",
+             rosValue(p) != null ? fmt(rosValue(p), 0) : null,
+             "Projected points above a startable " + p.pos + ", over his "
+               + weeksLeft(p) + " remaining games")}
+        ${kv("Expected per game from here", rosPPG(p) != null ? fmt(rosPPG(p)) : null)}
+        ${kv("Games left", weeksLeft(p) || null)}`}
+      ${kv("Rest-of-season rank", p.ecr_ros ? fmt(p.ecr_ros, 0) : null)}
+      ${kv("Rostered", p.own != null ? fmt(p.own, 0) + "% of leagues" : null)}
+      ${kv("Bye week", p.bye || null)}
+    </div>`}
+
+    ${(p.inj || dvp) ? `<div class="card pad stack" style="gap:8px">
+      <span class="eyebrow">This week</span>
+      ${p.inj ? `<div class="note"><b>${esc(p.inj)}</b>${
+        p.inj_note ? " — " + esc(p.inj_note) : ""}, from the Week ${
+        S.meta.sources?.injuries_week} report. That report is a week behind, so it
+        flags him rather than benching him.</div>` : ""}
+      ${dvp ? `<div class="note">${esc(p.opp)} has allowed the
+        <b>${dvp <= 8 ? "most" : dvp >= 25 ? "least" : fmt(dvp, 0) + "th-most"}</b>
+        fantasy points to ${p.pos}s this season (rank ${fmt(dvp, 0)} of 32) —
+        ${dvp <= 10 ? "a matchup to attack" : dvp >= 23 ? "a matchup to avoid"
+          : "a neutral matchup"}.</div>` : ""}
+    </div>` : ""}
+  </div>`;
+  document.body.appendChild(el);
+  const close = () => el.remove();
+  el.addEventListener("click", e => { if (e.target === el) close(); });
+  $("[data-close]", el).addEventListener("click", close);
+  document.addEventListener("keydown", function esc2(e) {
+    if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc2); }
+  });
+}
+
+function openConnect() {
+  const lg = S.league;
+  const el = document.createElement("div");
+  el.className = "sheet";
+  el.innerHTML = `<div class="sheet-in stack" role="dialog" aria-modal="true" aria-label="League">
+    <div class="row" style="justify-content:space-between">
+      <h2 class="h-sec">League</h2>
+      <button class="btn ghost sm" data-close>Close</button></div>
+
+    <div class="stack" style="gap:7px">
+      <span class="eyebrow">Your leagues</span>
+      ${S.leagues.map(l => {
+        const on = l.key === lg.key;
+        const state = l.status === "full" ? `<span class="chip good">rosters loaded</span>`
+          : l.status === "private" ? `<span class="chip bad">private</span>`
+          : `<span class="chip warn">standings only</span>`;
+        return `<button class="btn ghost" data-league="${esc(l.key)}"
+          style="text-align:left; display:block; width:100%; ${
+          on ? "border-color:var(--accent)" : ""}">
+          <div class="row" style="justify-content:space-between">
+            <b>${esc(l.name)}</b>${state}</div>
+          <div class="sub">${esc(l.platform)} · ${l.teams ? l.teams + " teams · " : ""}${
+            esc(l.type)} · ${esc(scoringLabel(l.scoring))}${
+            isSuperflex(l) ? " · superflex" : ""}</div>
+        </button>`;
+      }).join("")}
+    </div>
+
+    ${hasRosters(lg) ? `
+    <hr class="divider">
+    <div class="stack" style="gap:7px">
+      <span class="eyebrow">Your team in ${esc(lg.name)}</span>
+      <select id="teamSel" aria-label="Your team">
+        ${lg.rosters.map(r => `<option value="${esc(r.id)}" ${
+          r.id === S.myTeam ? "selected" : ""}>${esc(r.name)}</option>`).join("")}
+      </select>
+    </div>` : ""}
+
+    <hr class="divider">
+
+    <div class="stack" style="gap:7px">
+      <span class="eyebrow">Add another Sleeper league</span>
+      <input type="text" id="lidInput" placeholder="Sleeper league ID"
+        aria-label="Sleeper league ID">
+      <div class="row"><button class="btn" id="lidGo">Load league</button></div>
+      <div id="lidMsg" class="sub"></div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="stack" style="gap:7px">
+      <span class="eyebrow">Add or refresh an ESPN league</span>
+      <input type="text" id="eidInput" placeholder="ESPN league ID"
+        value="${esc(lg.source === "espn" ? (lg.league_id || "") : "")}"
+        aria-label="ESPN league ID">
+      <div class="row">
+        <button class="btn" id="eidGo">Load from ESPN</button>
+        <input type="number" id="eidSeason" value="${S.meta.season}" min="2018" max="2100"
+          style="width:88px" aria-label="Season">
+      </div>
+      <div id="eidMsg" class="sub">Sign in to ESPN in this browser first — private
+        leagues only answer when your session cookies come along for the ride.</div>
+    </div>
+
+    <hr class="divider">
+    <div class="stack" style="gap:7px">
+      <span class="eyebrow">Export</span>
+      <div class="row"><button class="btn ghost sm" data-export="all">Everything to Excel</button></div>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+  const close = () => el.remove();
+  el.addEventListener("click", e => { if (e.target === el) close(); });
+  $("[data-close]", el).addEventListener("click", close);
+  $("#teamSel", el)?.addEventListener("change", e => {
+    S.myTeam = e.target.value; saveState(); show(S.tab);
+  });
+  $$("[data-league]", el).forEach(b => b.addEventListener("click", () => {
+    switchLeague(b.dataset.league); close();
+  }));
+  $("#lidGo", el).addEventListener("click", async () => {
+    const id = $("#lidInput", el).value.trim();
+    const msg = $("#lidMsg", el);
+    if (!/^\d{5,25}$/.test(id)) { msg.textContent = "That doesn't look like a Sleeper league ID — it's a long number from the league URL."; return; }
+    msg.textContent = "Contacting Sleeper…";
+    try {
+      let lgNew = await trySleeper(id);
+      lgNew.key = "sleeper-" + id; lgNew.status = "full"; lgNew.platform = "Sleeper";
+      lgNew = mergeLeague(S.leagues.find(l => l.key === lgNew.key), lgNew);
+      S.leagues = [...S.leagues.filter(l => l.key !== lgNew.key), lgNew];
+      S.live = true;
+      msg.innerHTML = `<span class="chip good">Connected</span> ${esc(lgNew.name)}`;
+      switchLeague(lgNew.key);
+      close();
+    } catch {
+      msg.innerHTML = `This page can't reach Sleeper directly — claude.ai blocks published
+        pages from calling outside APIs. Send the league ID to Claude in the chat and it will
+        load your league into this app.`;
+    }
+  });
+  $("#eidGo", el).addEventListener("click", async () => {
+    const id = $("#eidInput", el).value.trim();
+    const season = +$("#eidSeason", el).value || S.meta.season;
+    const msg = $("#eidMsg", el);
+    if (!/^\d{3,25}$/.test(id)) {
+      msg.textContent = "An ESPN league ID is the number in the league URL, e.g. leagueId=12345678.";
+      return;
+    }
+    msg.textContent = "Contacting ESPN…";
+    try {
+      let lgNew = await tryEspn(id, season);
+      const prior = S.leagues.find(l => l.key === lgNew.key);
+      lgNew = mergeLeague(prior, lgNew);
+      if (prior && prior.my_team) {
+        const was = prior.rosters.find(r => r.id === prior.my_team);
+        const now = lgNew.rosters.find(r => r.id === prior.my_team)
+          || lgNew.rosters.find(r => r.name === (was || {}).name);
+        if (now) lgNew.my_team = now.id;
+      }
+      if (!lgNew.my_team && lgNew.rosters.length) lgNew.my_team = lgNew.rosters[0].id;
+      S.leagues = [...S.leagues.filter(l => l.key !== lgNew.key), lgNew];
+      saveConnected(lgNew);
+      msg.innerHTML = lgNew.status === "full"
+        ? `<span class="chip good">Loaded</span> ${esc(lgNew.name)} — ${
+            lgNew.rosters.length} rosters, ${lgNew.match_rate}% of players matched.
+            Pick your team above.`
+        : `<span class="chip warn">Standings only</span> ${esc(lgNew.name)} —
+            ESPN served the standings but not the rosters.`;
+      switchLeague(lgNew.key);
+    } catch (err) {
+      msg.innerHTML = `<span class="chip bad">No</span> ${esc(String(err.message || err))}`;
+    }
+  });
+  $$("[data-export]", el).forEach(b =>
+    b.addEventListener("click", () => { exportXlsx(b.dataset.export); close(); }));
+}
+
+/* ------------------------------------------------------------------- state */
+async function saveState(extra = {}) {
+  if (!DB || !USER_ID) return;
+  try {
+    await DB.doc(`data/users/${USER_ID}/prefs`).set({
+      myTeam: S.myTeam, tab: S.tab, ...extra, savedAt: new Date().toISOString(),
+    });
+  } catch {}
+}
+
+async function loadState() {
+  if (!DB || !USER_ID) return null;
+  try {
+    const snap = await DB.doc(`data/users/${USER_ID}/prefs`).get();
+    return snap.exists ? snap.data() : null;
+  } catch { return null; }
+}
+
+/* Leagues the viewer connected themselves. On claude.ai they last for the
+   session; the standalone build swaps these for localStorage. */
+function saveConnected(lg) {
+  try {
+    if (!DB || !USER_ID) return;
+    DB.doc(`data/users/${USER_ID}/league_${lg.key}`).set({
+      key: lg.key, source: lg.source, league_id: lg.league_id,
+      my_team: lg.my_team, savedAt: new Date().toISOString(),
+    });
+  } catch {}
+}
+function loadConnected() { return []; }
+
+/* Manually entered rosters.
+   Written to browser storage always and to the artifact's own store when one is
+   available, then read back store-first. Typing a roster in and losing it on
+   reload would be worse than not offering the feature, so this does not depend
+   on a capability that may or may not have resolved. */
+const MANUAL_KEY = "sacko.rosters";
+
+function saveManual(map) {
+  const savedAt = new Date().toISOString();
+  // Stamp both stores. Without a timestamp there is no way to tell a paste
+  // made ten minutes ago from one made three data builds back, and the newer
+  // of the two has to win.
+  try { localStorage.setItem(MANUAL_KEY, JSON.stringify({ map: map || {}, savedAt })); }
+  catch {}
+  try {
+    if (DB && USER_ID)
+      DB.doc(`data/users/${USER_ID}/rosters`).set({ map, savedAt });
+  } catch {}
+}
+
+async function loadManual() {
+  try {
+    if (DB && USER_ID) {
+      const snap = await DB.doc(`data/users/${USER_ID}/rosters`).get();
+      if (snap.exists && snap.data().map)
+        return { map: snap.data().map, savedAt: snap.data().savedAt || null };
+    }
+  } catch {}
+  try {
+    const raw = JSON.parse(localStorage.getItem(MANUAL_KEY) || "null");
+    if (!raw) return null;
+    // a pre-stamp save is a bare map, and counts as older than any build
+    return raw.map ? raw : { map: raw, savedAt: null };
+  } catch { return null; }
+}
+
+/* ============================================================ live scoring
+   In-game updates, from whichever platform the active league is on.
+
+   This runs in BOTH builds and simply tries. Whether a published claude.ai
+   page may call an outside API is a property of the page's sandbox that this
+   session cannot test from here, and the honest thing is to attempt the call
+   and report what actually happened rather than to assume a refusal and show a
+   projection forever. When the call is blocked the card says so in plain
+   words; when it works the scores move.
+
+   Sleeper hands back each roster's running total and every starter's points.
+   ESPN carries the same thing inside the scoring-period matchup view as
+   `appliedStatTotal`, alongside the real head-to-head pairings and each side's
+   actual lineup — so for an ESPN league this is also the only place the app
+   ever learns who is really playing whom. */
+
+const LIVE_TIMEOUT = 9000;
+
+async function grabJSON(url, creds) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), LIVE_TIMEOUT);
+  try {
+    const r = await fetch(url, {
+      signal: ctl.signal, cache: "no-store",
+      ...(creds ? { credentials: creds } : {}),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  } finally { clearTimeout(timer); }
+}
+
+/** A player's points so far this week, out of an ESPN roster entry. */
+function espnApplied(entry, wk) {
+  const pe = entry.playerPoolEntry || entry;
+  if (typeof pe.appliedStatTotal === "number") return pe.appliedStatTotal;
+  const pl = pe.player || {};
+  for (const s of pl.stats || []) {
+    // statSourceId 0 is actual (1 is projected); splitType 1 is this week
+    if (s.statSourceId === 0 && s.statSplitTypeId === 1
+        && Number(s.scoringPeriodId) === Number(wk)
+        && typeof s.appliedTotal === "number") return s.appliedTotal;
+  }
+  return null;
+}
+
+/** ESPN: live points, real pairings, real starting lineups. */
+async function fetchEspnLive(lg, wk) {
+  const season = lg.season || S.meta.season;
+  const url = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/"
+    + season + "/segments/0/leagues/" + encodeURIComponent(lg.league_id)
+    + "?view=mMatchupScore&scoringPeriodId=" + wk;
+  let data = null, lastErr = null;
+  for (const creds of ["include", "omit"]) {
+    try { data = await grabJSON(url, creds); break; }
+    catch (e) { lastErr = e; }
+  }
+  if (!data) throw lastErr || new Error("no answer");
+
+  const pts = {}, pairs = [], by_roster = {};
+  let scored = 0;
+  for (const g of data.schedule || []) {
+    if (Number(g.matchupPeriodId) !== Number(wk)) continue;
+    const sides = [g.home, g.away].filter(s => s && s.teamId != null);
+    if (sides.length !== 2) continue;
+    const mid = String(g.id != null ? g.id : pairs.length + 1);
+    pairs.push({ matchup_id: mid, rosters: sides.map(s => String(s.teamId)) });
+    for (const side of sides) {
+      const entries = ((side.rosterForCurrentScoringPeriod
+        || side.rosterForMatchupPeriod || {}).entries) || [];
+      const starters = [];
+      for (const e of entries) {
+        const p = matchEspn(e);
+        if (!p) continue;
+        const v = espnApplied(e, wk);
+        if (v != null) { pts[p.id] = v; if (v) scored++; }
+        const slot = ESPN_SLOT[e.lineupSlotId];
+        if (slot && slot !== "BN" && slot !== "IR") starters.push(p.id);
+      }
+      by_roster[String(side.teamId)] = {
+        matchup_id: mid,
+        points: typeof side.totalPoints === "number" ? side.totalPoints : 0,
+        starters,
+      };
+    }
+  }
+  if (!pairs.length) throw new Error("no week " + wk + " matchups in the response");
+  return { pts, scored, matchups: { pairs, by_roster } };
+}
+
+/** Sleeper: the matchups endpoint carries points per roster and per player. */
+async function fetchSleeperLive(lg, wk) {
+  const rows = await grabJSON("https://api.sleeper.app/v1/league/"
+    + encodeURIComponent(lg.league_id) + "/matchups/" + wk);
+  if (!Array.isArray(rows) || !rows.length) throw new Error("no matchups");
+
+  const pts = {}, groups = {}, by_roster = {};
+  let scored = 0;
+  for (const row of rows) {
+    const pp = row.players_points || {};
+    for (const id in pp) { pts[String(id)] = pp[id]; if (pp[id]) scored++; }
+    const rid = String(row.roster_id);
+    by_roster[rid] = {
+      matchup_id: row.matchup_id == null ? "" : String(row.matchup_id),
+      points: row.points || 0,
+      starters: (row.starters || []).map(String),
+    };
+    if (row.matchup_id != null) {
+      const k = String(row.matchup_id);
+      (groups[k] = groups[k] || []).push(rid);
+    }
+  }
+  return {
+    pts, scored,
+    matchups: {
+      pairs: Object.keys(groups).map(id => ({ matchup_id: id, rosters: groups[id] })),
+      by_roster,
+    },
+  };
+}
+
+/* --------------------------------------------------------- the relay route
+   A published claude.ai artifact cannot call an outside API: the capability
+   set it can be granted — artifact, assets, comments, db, downloads, mcp,
+   room, sample, self, user — contains nothing that fetches a URL, and external
+   hosts are blocked besides. So the page's own call to Sleeper works in the
+   downloaded file and not in the published one, and no amount of polling
+   changes that.
+
+   What the published page CAN do is read its own data store. A scheduled task
+   reaches Sleeper, and writes this week's points into `live/<league key>`
+   through the same `db` the page already uses for preferences. The page
+   subscribes and the numbers arrive with no outbound call — a relay, not a
+   fetch. Writing to the store needs no republish, so the task is cheap and can
+   run often; its freshness is whatever the task's interval is, and the card
+   says so rather than implying the numbers are instant. */
+
+/* How old a relay payload may be before it stops being this week's score and
+   becomes history. This tracks the relay's ACTUAL cadence, which is whatever
+   the scheduled task runs at — hourly, because that is the floor this account's
+   scheduler allows. A window shorter than the cadence would blank the score for
+   most of every hour, which is worse than showing a known-old number; a much
+   longer one would still be showing Sunday's score on Tuesday. So: the cadence
+   plus slack for a late run.
+
+   A stale relay score is always an UNDERSTATEMENT, never an overstatement —
+   points only accumulate within a week — which is why showing it with its age
+   is honest and showing it without one would not be. */
+const RELAY_MAX_AGE_MS = 75 * 60 * 1000;
+
+/** Past this, a relayed number is reported with its age instead of as "live". */
+const RELAY_LIVE_MS = 3 * 60 * 1000;
+
+let _relayUnsub = null;
+
+/** Subscribe to the active league's relay document. Re-subscribed when the
+    league changes, because the document path changes with it — never from
+    render, which would open a new subscription on every repaint. */
+function subscribeRelay() {
+  if (_relayUnsub) { try { _relayUnsub(); } catch {} _relayUnsub = null; }
+  const lg = S.league;
+  if (!DB || !lg || !lg.key) return;
+  let ref;
+  try { ref = DB.doc("live/" + lg.key); } catch { return; }   // bad path: give up
+  _relayUnsub = ref.onSnapshot(snap => {
+    S.relay = snap.exists ? (snap.data() || null) : null;
+    applyLive();
+  }, err => {
+    _relayUnsub = null;
+    S.relayErr = (err && err.code) || "unavailable";
+    applyLive();
+  });
+}
+
+const rosterTotals = mu => {
+  if (!mu || !mu.by_roster) return null;
+  const out = {};
+  for (const rid in mu.by_roster) {
+    const v = mu.by_roster[rid].points;
+    if (typeof v === "number") out[rid] = v;
+  }
+  return Object.keys(out).length ? out : null;
+};
+
+/**
+ * Settle on one set of live points.
+ *
+ * Both routes can be carrying numbers at once, and they can disagree — the
+ * relay is a snapshot from minutes ago, a direct call is from seconds ago. So
+ * take the FRESHER, and only after checking it is this week's: a payload left
+ * over from last week would quietly restate a finished week as a live one.
+ *
+ * An all-zero response before kickoff is an empty week, not a live feed;
+ * treating it as live would report every game as finished with no points. So
+ * neither route sets `livePoints` until something has actually scored.
+ */
+function applyLive() {
+  const wk = Number(S.meta.upcoming_week);
+  const direct = (S.directPts && Number(S.directWeek) === wk)
+    ? { pts: S.directPts, totals: S.directTotals, at: S.directAt, src: "direct" }
+    : null;
+
+  let relay = null;
+  const r = S.relay;
+  if (r && Number(r.week) === wk && r.pts && Object.keys(r.pts).length) {
+    const at = Date.parse(r.at || "");
+    if (at && Date.now() - at < RELAY_MAX_AGE_MS)
+      relay = { pts: r.pts, totals: r.totals || null, at: new Date(at), src: "relay" };
+  }
+
+  const pick = (direct && relay)
+    ? (direct.at >= relay.at ? direct : relay)
+    : (direct || relay);
+
+  S.livePoints = pick ? pick.pts : null;
+  S.liveTotals = pick ? pick.totals : null;
+  S.liveAt = pick ? pick.at : null;
+  S.liveSrc = pick ? pick.src : null;
+  if (S.tab === "matchup") renderMatchup();
+}
+
+/**
+ * One poll of the active league, over this browser's own connection.
+ *
+ * Guarded against overlap: a call that takes longer than the interval must not
+ * stack a second one behind it, or a slow network turns into a queue of
+ * requests that all land at once and fight over the render.
+ */
+let _pollInFlight = false, _failStreak = 0;
+
+async function pollLive() {
+  const lg = S.league;
+  S.liveErr = null;
+  if (!lg || !lg.league_id) { S.canPollLive = false; return; }
+  // Polling a finished week fetches last week's final scores, which is exactly
+  // what a stale copy must not present as current. Nothing to poll until the
+  // data catches up.
+  if (staleWeek()) { S.canPollLive = false; return; }
+  if (_pollInFlight) return;
+  _pollInFlight = true;
+  const wk = S.meta.upcoming_week;
+
+  try {
+    const out = lg.source === "espn"
+      ? await fetchEspnLive(lg, wk)
+      : await fetchSleeperLive(lg, wk);
+
+    S.canPollLive = true;
+    _failStreak = 0;
+
+    // Real pairings and lineups, whatever the shipped snapshot guessed at.
+    if (out.matchups && out.matchups.pairs.length) {
+      lg.matchups = Object.assign({}, lg.matchups);
+      lg.matchups[String(wk)] = out.matchups;
+    }
+    S.directPts = out.scored ? out.pts : null;
+    S.directTotals = out.scored ? rosterTotals(out.matchups) : null;
+    S.directAt = new Date();
+    S.directWeek = wk;
+  } catch (err) {
+    S.canPollLive = false;
+    _failStreak++;
+    S.liveErr = String((err && err.message) || err);
+  } finally {
+    _pollInFlight = false;
+  }
+  // Either way, re-settle: a failed direct call does not invalidate the relay.
+  applyLive();
+}
+
+/** Is a game running right now, among the teams given? */
+function anyRunning(teams) {
+  const k = S.kick && S.kick[String(S.meta.upcoming_week)];
+  if (!k) return false;
+  const now = Date.now();
+  return (teams || Object.keys(k)).some(t => {
+    const g = k[t];
+    return g && now >= Date.parse(g.kick) && now < Date.parse(g.end);
+  });
+}
+
+/** Are any of this week's games running right now? */
+const gamesRunning = () => anyRunning(null);
+
+/**
+ * Is a game running that this matchup actually depends on?
+ *
+ * The teams in the two starting lineups are the only ones whose clock matters.
+ * Polling every fifteen seconds through a Sunday night game that neither side
+ * has a player in buys nothing, and late in a week that is most of the slate.
+ * Falls back to the whole slate when the lineups aren't known.
+ */
+function myGamesRunning() {
+  const lg = S.league;
+  if (!lg || !lg.rosters) return gamesRunning();
+  const mu = lg.matchups && lg.matchups[String(S.meta.upcoming_week)];
+  const ids = [];
+  const r = me();
+  if (r) ids.push(...(((mu && mu.by_roster && mu.by_roster[r.id]) || {}).starters
+    || r.starters || r.players || []));
+  if (mu && mu.by_roster) {
+    const pair = (mu.pairs || []).find(x => r && x.rosters.includes(r.id));
+    const oppId = pair && pair.rosters.find(x => !r || x !== r.id);
+    if (oppId) ids.push(...((mu.by_roster[oppId] || {}).starters || []));
+  }
+  const teams = [...new Set(ids.map(i => (S.byId.get(i) || {}).team).filter(Boolean))];
+  return teams.length ? anyRunning(teams) : gamesRunning();
+}
+
+/* Pace the polling by what is actually happening.
+
+   As live as it can be where it matters: 15s while a game this matchup depends
+   on is running AND the matchup tab is the one on screen. Reading another tab
+   drops to 45s, because the numbers are not in front of them. No game in
+   progress is 5 minutes. Hidden is nothing at all — a phone in a pocket should
+   not hit an API every fifteen seconds, and browsers throttle background timers
+   regardless. Coming back polls at once, which is what glancing at a phone
+   between drives actually wants.
+
+   Failures back off, doubling to a 5-minute ceiling. In a published artifact
+   the direct call is blocked permanently, so without a backoff the page would
+   retry a call that cannot ever succeed four times a minute for as long as it
+   stayed open; the relay keeps updating meanwhile, on its own subscription. */
+const LIVE_FAST = 15000, LIVE_BG = 45000, LIVE_IDLE = 300000, LIVE_MAX = 300000;
+
+function liveDelay() {
+  if (_failStreak) return Math.min(LIVE_MAX, LIVE_FAST * Math.pow(2, _failStreak));
+  if (!myGamesRunning()) return LIVE_IDLE;
+  return S.tab === "matchup" ? LIVE_FAST : LIVE_BG;
+}
+
+let _liveTimer = null;
+function scheduleLive() {
+  clearTimeout(_liveTimer);
+  _liveTimer = null;
+  if (document.hidden) return;
+  _liveTimer = setTimeout(() => { pollLive().then(scheduleLive); }, liveDelay());
+}
+
+function startLive() {
+  pollLive().then(scheduleLive);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { clearTimeout(_liveTimer); return; }
+    pollLive().then(scheduleLive);
+  });
+}
+
+/** The line under the score that says where these numbers came from, by which
+    route, and how old they are. A number whose age isn't stated reads as
+    instant, and a relayed number never is. */
+function liveStatus() {
+  const lg = S.league;
+  const ago = S.liveAt
+    ? Math.max(0, Math.round((Date.now() - S.liveAt.getTime()) / 1000)) : null;
+  const when = ago == null ? ""
+    : ago < 60 ? `${ago}s ago`
+    : ago < 5400 ? `${Math.round(ago / 60)} min ago`
+    : `${Math.round(ago / 3600)}h ago`;
+  const refresh = `<button class="btn ghost sm" data-relive>Refresh</button>`;
+  const cadence = myGamesRunning()
+    ? (S.tab === "matchup" ? "every 15s while you're on this tab" : "every 45s")
+    : "every 5 min — no game of yours is in progress";
+
+  if (S.livePoints && S.liveSrc === "direct")
+    return `<div class="row" style="justify-content:space-between">
+      <span class="sub"><span class="chip good">live</span> ${esc(lg.platform)},
+        updated ${esc(when)} · checking ${esc(cadence)}</span>${refresh}</div>`;
+
+  if (S.livePoints && S.liveSrc === "relay") {
+    // Only a relayed score that just landed is "live". Past a few minutes the
+    // badge states its age instead, because the scheduled relay runs hourly —
+    // calling a 40-minute-old number live would be a claim the cadence can't
+    // support. It can only be an understatement: points don't come back off.
+    const fresh = ago != null && ago * 1000 < RELAY_LIVE_MS;
+    return `<div class="row" style="justify-content:space-between">
+      <span class="sub"><span class="chip ${fresh ? "good" : ""}">${
+        fresh ? "live" : esc(when)}</span> relayed from ${esc(lg.platform)}${
+        fresh ? "" : ` — scores as of ${esc(when)}, and can only have gone up since`}.
+        This page can't call ${esc(lg.platform)} itself, so the scheduled refresh
+        writes the scores into its own store hourly during games.</span>${refresh}</div>`;
+  }
+
+  if (S.canPollLive)
+    return `<div class="row" style="justify-content:space-between">
+      <span class="sub">Connected to ${esc(lg.platform)} — nothing has scored yet,
+        so these are projections. Checking ${esc(cadence)}.</span>${refresh}</div>`;
+
+  // Only Sleeper is relayed. The scheduled task that writes live scores into
+  // this page's store reads Sleeper; ESPN's matchup payload truncates through
+  // the relay and can't be read whole. Telling an ESPN viewer that the refresh
+  // "writes live scores here" promised scores that would never arrive.
+  const relayed = lg.source !== "espn";
+  return `<div class="sub">This copy can't reach ${esc(lg.platform)} directly${
+    S.liveErr ? ` <span class="mono">(${esc(S.liveErr)})</span>` : ""}, so these
+    are projections. ${relayed
+      ? `No relayed score for Week ${esc(String(S.meta.upcoming_week))} has arrived
+         yet — the scheduled refresh writes live scores here hourly during games.`
+      : `Live ${esc(lg.platform)} scores aren't relayed to this page: its matchup
+         data can't be read whole from where the scheduled refresh runs.`}
+    The downloaded file calls ${esc(lg.platform)} itself during games.
+    ${refresh}</div>`;
+}
+
+/* -------------------------------------------------------------------- boot */
+async function boot() {
+  const [players, schedule, picks, meta, leagues] = await Promise.all(
+    ["players", "schedule", "picks", "meta", "leagues"].map(f => loadJSON(`data/${f}.json`)));
+
+  S.players = players; S.byId = new Map(players.map(p => [p.id, p]));
+  S.sched = schedule.sched; S.dvp = schedule.dvp; S.byes = schedule.byes;
+  S.kick = schedule.kickoffs || null;
+  S.picks = picks; S.meta = meta; S.leagues = leagues;
+  // Keep the rosters as shipped, before any paste is laid over them, so the
+  // viewer can always get back to them in one tap.
+  for (const lg of S.leagues)
+    lg._shipped = Object.fromEntries(
+      lg.rosters.map(r => [r.id, (r.players || []).slice()]));
+  S.league = leagues.find(hasRosters) || leagues[0];
+  S.myTeam = S.league.my_team || (S.league.rosters[0] || {}).id || null;
+
+  $("#leagueLabel").textContent = `${S.league.platform} · ${S.league.name}`;
+
+  // browser-stored rosters are available before any capability resolves
+  applyManual(await loadManual());
+  if (!hasRosters(S.league)) {
+    const better = S.leagues.find(hasRosters);
+    if (better) { S.league = better; S.myTeam = better.my_team || S.myTeam; }
+  }
+  $("#leagueLabel").textContent = `${S.league.platform} · ${S.league.name}`;
+
+  renderTabs();
+  $("#tabbar").addEventListener("click", e => {
+    const b = e.target.closest("[data-tab]"); if (b) show(b.dataset.tab);
+  });
+  document.addEventListener("click", e => {
+    const ex = e.target.closest("[data-export]");
+    if (ex && !ex.closest(".sheet")) { exportXlsx(ex.dataset.export); return; }
+    const go = e.target.closest("[data-goto]");
+    if (go) { show(go.dataset.goto); return; }
+    const sw = e.target.closest("[data-league]");
+    if (sw && !sw.closest(".sheet")) { switchLeague(sw.dataset.league); return; }
+    const rl = e.target.closest("[data-relive]");
+    if (rl) { rl.disabled = true; rl.textContent = "…";
+      pollLive().then(scheduleLive); return; }
+    const sh = e.target.closest("[data-shipped]");
+    if (sh) { useShippedRoster(sh.dataset.shipped); return; }
+    const ed = e.target.closest("[data-roster]");
+    if (ed) { openRosterEditor(ed.dataset.roster || (me() || {}).id); return; }
+    const ep = e.target.closest("[data-espn]");
+    if (ep) { loadEspnInline(ep, ep.dataset.espn); return; }
+    const row = e.target.closest("[data-player]");
+    if (row && !e.target.closest("button, a, input, select")) openPlayer(row.dataset.player);
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const row = e.target.closest && e.target.closest("[data-player]");
+    if (row) { e.preventDefault(); openPlayer(row.dataset.player); }
+  });
+  $("#btnConnect").addEventListener("click", openConnect);
+  $("#btnTheme").addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const next = cur === "dark" ? "light" : cur === "light" ? "dark"
+      : (matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "dark");
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("ss.theme", next); } catch {}
+  });
+
+  restoreFilters();
+  if (hasRosters(S.league)) seedTrade();
+
+  let start = "matchup";
+  try { start = localStorage.getItem("ss.tab") || "matchup"; } catch {}
+  show(TABS.some(([k]) => k === start) ? start : "matchup");
+
+  startLive();
+
+  // capabilities resolve after first paint; the page is fully usable without them
+  (async () => {
+    const use = async name => {
+      try { return (await window.claude?.use?.(name)) ?? null; } catch { return null; }
+    };
+    [DOWNLOADS, DB] = await Promise.all(["downloads", "db"].map(use));
+    const u = await use("user");
+    if (u) { try { USER_ID = await u.id(); } catch { USER_ID = null; } }
+    // The store is also the live-score relay — subscribe as soon as it resolves.
+    subscribeRelay();
+    applyManual(await loadManual());
+    const saved = await loadState();
+    if (saved?.leagueKey && S.leagues.some(l => l.key === saved.leagueKey)) {
+      switchLeague(saved.leagueKey);
+    }
+    if (saved?.myTeam && S.league.rosters.some(r => r.id === saved.myTeam)) {
+      S.myTeam = saved.myTeam; show(S.tab);
+    }
+  })();
+}
+
+try { const t = localStorage.getItem("ss.theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch {}
+boot().catch(err => {
+  $("main").innerHTML = `<div class="card pad"><div class="h-sec">Couldn't load the data</div>
+    <div class="sub">${esc(err.message)}</div></div>`;
+});
+</script>
