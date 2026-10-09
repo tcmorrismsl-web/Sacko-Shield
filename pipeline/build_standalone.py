@@ -298,7 +298,10 @@ async function loadFromLink() {
         lg = mergeLeague(lg, fresh);
       } catch (err) { failed.push(w.id); continue; }
     }
-    if (w.team && lg.rosters.some(r => r.id === w.team)) lg.my_team = w.team;
+    // the link sets your team once; a team you pick later in the app wins
+    if (w.team && !lg._teamPicked && lg.rosters.some(r => r.id === w.team)) {
+      lg.my_team = w.team; lg._teamPicked = true;
+    }
     if (!lg.my_team && lg.rosters.length) lg.my_team = lg.rosters[0].id;
     for (const r of lg.rosters)
       if (!(lg._shipped || {})[r.id]) (lg._shipped = lg._shipped || {})[r.id] = (r.players || []).slice();
@@ -319,7 +322,7 @@ swap('''  $("#teamSel", el)?.addEventListener("change", e => {
     S.myTeam = e.target.value; saveState(); show(S.tab);
   });''',
 '''  $("#teamSel", el)?.addEventListener("change", e => {
-    S.myTeam = e.target.value; S.league.my_team = S.myTeam;
+    S.myTeam = e.target.value; S.league.my_team = S.myTeam; S.league._teamPicked = true;
     if (S.league.source !== "placeholder") saveConnected(S.league);
     saveState(); show(S.tab);
   });
@@ -354,6 +357,12 @@ swap('''    if (saved?.myTeam && S.league.rosters.some(r => r.id === saved.myTea
       S.myTeam = S.league.my_team; show(S.tab);
     } else if (saved?.myTeam && S.league.rosters.some(r => r.id === saved.myTeam)) {''',
      "per-league team on boot")
+
+# a refresh must not forget that you chose your team in this league
+swap('''  for (const k of ["scoring_settings", "scoring_partial", "note", "platform",
+                   "type", "season"]) {''',
+'''  for (const k of ["scoring_settings", "scoring_partial", "note", "platform",
+                   "type", "season", "_teamPicked"]) {''', "keep team pick on refresh")
 
 swap('''/* -------------------------------------------------------------------- boot */''',
 '''/** Quietly pull fresh rosters for every league we already know about. */

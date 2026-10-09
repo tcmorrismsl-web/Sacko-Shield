@@ -707,7 +707,7 @@ function mergeLeague(prev, fresh) {
   if (!prev) return fresh;
   const out = Object.assign({}, fresh);
   for (const k of ["scoring_settings", "scoring_partial", "note", "platform",
-                   "type", "season"]) {
+                   "type", "season", "_teamPicked"]) {
     if (out[k] == null && prev[k] != null) out[k] = prev[k];
   }
   // Matchups are week-specific: keep the old ones only when they still cover
@@ -3397,7 +3397,10 @@ async function loadFromLink() {
         lg = mergeLeague(lg, fresh);
       } catch (err) { failed.push(w.id); continue; }
     }
-    if (w.team && lg.rosters.some(r => r.id === w.team)) lg.my_team = w.team;
+    // the link sets your team once; a team you pick later in the app wins
+    if (w.team && !lg._teamPicked && lg.rosters.some(r => r.id === w.team)) {
+      lg.my_team = w.team; lg._teamPicked = true;
+    }
     if (!lg.my_team && lg.rosters.length) lg.my_team = lg.rosters[0].id;
     for (const r of lg.rosters)
       if (!(lg._shipped || {})[r.id]) (lg._shipped = lg._shipped || {})[r.id] = (r.players || []).slice();
@@ -3499,7 +3502,7 @@ function openConnect() {
   el.addEventListener("click", e => { if (e.target === el) close(); });
   $("[data-close]", el).addEventListener("click", close);
   $("#teamSel", el)?.addEventListener("change", e => {
-    S.myTeam = e.target.value; S.league.my_team = S.myTeam;
+    S.myTeam = e.target.value; S.league.my_team = S.myTeam; S.league._teamPicked = true;
     if (S.league.source !== "placeholder") saveConnected(S.league);
     saveState(); show(S.tab);
   });
