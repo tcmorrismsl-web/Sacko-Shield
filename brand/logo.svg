@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Sacko Shield</title>
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#26262a"/>
+      <stop offset="0.55" stop-color="#121214"/>
+      <stop offset="1" stop-color="#050506"/>
+    </radialGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7f8fa"/>
+      <stop offset="0.35" stop-color="#c9cdd3"/>
+      <stop offset="0.55" stop-color="#8d939b"/>
+      <stop offset="0.75" stop-color="#d8dbe0"/>
+      <stop offset="1" stop-color="#7b8189"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbe7a1"/>
+      <stop offset="0.4" stop-color="#e2b84c"/>
+      <stop offset="0.7" stop-color="#b8892a"/>
+      <stop offset="1" stop-color="#f0cf6e"/>
+    </linearGradient>
+    <linearGradient id="inner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1c1f"/>
+      <stop offset="1" stop-color="#0a0a0b"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- silver shield -->
+  <path d="M256 62 L414 116 C414 116 417 250 402 302 C383 368 331 418 256 456 C181 418 129 368 110 302 C95 250 98 116 98 116 Z"
+        fill="url(#silver)"/>
+  <!-- gold trim -->
+  <path d="M256 92 L388 137 C388 137 391 252 377 298 C360 354 316 396 256 428 C196 396 152 354 135 298 C121 252 124 137 124 137 Z"
+        fill="url(#gold)"/>
+  <!-- black field -->
+  <path d="M256 108 L374 148 C374 148 377 253 364 295 C348 346 308 385 256 413 C204 385 164 346 148 295 C135 253 138 148 138 148 Z"
+        fill="url(#inner)"/>
+  <!-- gold football -->
+  <g transform="translate(256 262) rotate(-32)">
+    <path d="M-104 0 C-62 -64 62 -64 104 0 C62 64 -62 64 -104 0 Z" fill="url(#gold)"/>
+    <path d="M-104 0 C-62 -64 62 -64 104 0 C62 64 -62 64 -104 0 Z" fill="none" stroke="#6b4f12" stroke-opacity=".55" stroke-width="3"/>
+    <!-- end stripes -->
+    <path d="M-62 -27 C-54 -10 -54 10 -62 27" fill="none" stroke="url(#silver)" stroke-width="7" stroke-linecap="round"/>
+    <path d="M62 -27 C54 -10 54 10 62 27" fill="none" stroke="url(#silver)" stroke-width="7" stroke-linecap="round"/>
+    <!-- laces -->
+    <rect x="-36" y="-4" width="72" height="8" rx="4" fill="#f4f5f7"/>
+    <g fill="#f4f5f7">
+      <rect x="-27" y="-15" width="7" height="30" rx="3.5"/>
+      <rect x="-10" y="-15" width="7" height="30" rx="3.5"/>
+      <rect x="3" y="-15" width="7" height="30" rx="3.5"/>
+      <rect x="20" y="-15" width="7" height="30" rx="3.5"/>
+    </g>
+  </g>
+</svg>

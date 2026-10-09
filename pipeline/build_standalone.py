@@ -423,6 +423,11 @@ doc = f"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Dynasty and redraft fantasy football cockpit — start/sit, waivers, trade values, league analysis and Excel export.">
 <meta name="color-scheme" content="light dark">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="48x48" href="brand/favicon.png">
+<link rel="icon" type="image/svg+xml" href="brand/logo.svg">
+<meta name="apple-mobile-web-app-title" content="Sacko Shield">
+<meta name="theme-color" content="#0b0b0c">
 <style>
   :root {{
     color-scheme: light dark;
