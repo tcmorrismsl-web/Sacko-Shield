@@ -416,6 +416,42 @@ swap('''    <div class="srcline">League: <b>${esc(S.league.platform)} · ${esc(S
       time you open the page.</div>''', "provenance")
 
 # ------------------------------------------------------------------- assemble
+# 8. fresh overlay (pipeline/overlay): projections, injuries, practice, weather,
+#    expert ranks — fetched on open and every 15 minutes -------------------------
+OVERLAY_JS = (pathlib.Path(__file__).resolve().parent / "overlay" / "overlay.js").read_text()
+swap('''/** Quietly pull fresh rosters for every league we already know about. */''',
+     OVERLAY_JS + '''
+
+/** Quietly pull fresh rosters for every league we already know about. */''', "overlay code")
+
+swap('''    const fromLink = await loadFromLink();''',
+'''    // fresh projections / injuries / weather first, so leagues load against the
+    // right week
+    await loadOverlay({ render: false });
+    startOverlayTimer();
+    if (S.ov) { renderTabs(); if (S.tab) show(S.tab); }
+    const fromLink = await loadFromLink();''', "overlay on boot")
+
+swap('''  return `<span class="chip ${cls}" title="Report from Week ${wk}">${esc(p.inj[0])}${''',
+'''  return `<span class="chip ${cls}" title="${esc(p.inj_title || "Report from Week " + wk)}">${esc(p.inj[0])}${''',
+     "injury chip detail")
+
+swap('''    <span>${esc(p.name)}</span>${injChip(p)}`;''',
+'''    <span>${esc(p.name)}</span>${injChip(p)}${pracChip(p)}${wxChip(p)}${trendChip(p)}`;''',
+     "name cell chips")
+
+swap('''function staleBannerHTML() {
+  const c = staleWeek();
+  if (!c) return "";''',
+'''function staleBannerHTML() {
+  const ovs = overlayStatusHTML();
+  const c = staleWeek();
+  if (!c) return ovs;''', "overlay status line")
+swap('''  return `<div class="banner" role="status" style="margin-bottom:14px"><div>
+    <b>Week ${d} is over''',
+'''  return ovs + `<div class="banner" role="status" style="margin-bottom:14px"><div>
+    <b>Week ${d} is over''', "overlay status before stale banner")
+
 doc = f"""<!doctype html>
 <html lang="en">
 <head>
