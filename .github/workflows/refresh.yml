@@ -1,0 +1,64 @@
+name: Refresh projections, status, weather
+
+# Fires every 15 minutes; refresh.py decides whether a run is actually due
+# (15 min in the 2 hours before a kickoff, 30 min during games, 2 hours
+# otherwise) and exits in seconds when it isn't. GitHub's scheduler can start
+# runs several minutes late at busy times.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Run even if not due"
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths:
+      - "pipeline/overlay/**"
+      - ".github/workflows/refresh.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: overlay-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Previous overlay
+        run: |
+          mkdir -p prev
+          if git fetch --depth=1 origin data 2>/dev/null; then
+            git show origin/data:overlay.json > prev/overlay.json 2>/dev/null || rm -f prev/overlay.json
+          fi
+
+      - name: Build overlay
+        run: |
+          FORCE=""
+          if [ "${{ github.event_name }}" = "push" ]; then FORCE="--force"; fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then FORCE="--force"; fi
+          python3 pipeline/overlay/refresh.py --prev prev/overlay.json --out out $FORCE
+
+      - name: Publish to the data branch
+        run: |
+          if [ ! -f out/diag.json ]; then echo "not due; nothing to publish"; exit 0; fi
+          # a refused run keeps the previous overlay, and still publishes its diag
+          if [ ! -f out/overlay.json ] && [ -f prev/overlay.json ]; then cp prev/overlay.json out/overlay.json; fi
+          cd out
+          git init -q -b data
+          git config user.name "sacko-shield-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "overlay $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" data
+          echo "published"
