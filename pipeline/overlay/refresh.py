@@ -117,14 +117,26 @@ def load_schedule(diag):
     return season, week, games
 
 
+def implied(g):
+    """Each side's implied points from the line (home = total/2 + spread/2, as
+    in the main build; nflverse's spread_line is positive when home is favoured)."""
+    try:
+        sp, tot = float(g["spread"]), float(g["total"])
+    except (TypeError, ValueError):
+        return None, None
+    return round(tot / 2 + sp / 2, 2), round(tot / 2 - sp / 2, 2)
+
+
 def kickoff_table(games, week):
     out = {}
     for g in games:
         if g["week"] != week:
             continue
-        for team, opp, home in ((g["home"], g["away"], True), (g["away"], g["home"], False)):
+        h_imp, a_imp = implied(g)
+        for team, opp, home, imp in ((g["home"], g["away"], True, h_imp),
+                                     (g["away"], g["home"], False, a_imp)):
             out[team] = {"kick": iso(g["kick"]), "end": iso(g["end"]), "final": g["final"],
-                         "opp": opp, "home": home}
+                         "opp": opp, "home": home, "implied": imp}
     return out
 
 
@@ -171,7 +183,7 @@ STATUS_KEYS = ("injury_status", "injury_body_part", "injury_notes", "injury_star
 
 
 def sleeper_projections(season, week, diag):
-    proj, status = {}, {}
+    proj, status, ok_positions = {}, {}, []
     key_union, player_key_union = set(), set()
     for pos in POSITIONS:
         q = urllib.parse.urlencode({"season_type": "regular", "position[]": pos, "order_by": "pts_ppr"})
@@ -192,10 +204,12 @@ def sleeper_projections(season, week, diag):
             if pid and pl.get("injury_status"):
                 status[pid] = {k: pl.get(k) for k in STATUS_KEYS if pl.get(k) not in (None, "", [])}
         diag["sources"][f"sleeper_proj_{pos}"]["kept"] = kept
+        if kept:
+            ok_positions.append(pos)
     diag["sleeper_projection_keys"] = sorted(key_union)
     diag["sleeper_projection_player_keys"] = sorted(player_key_union)
     diag["status_fields_seen"] = sorted({k for s in status.values() for k in s})
-    return proj, status
+    return proj, status, ok_positions
 
 
 def sleeper_trending(diag):
@@ -417,7 +431,7 @@ def main():
     sl_week = state.get("display_week") or state.get("week")
     diag["week_sleeper"] = sl_week
 
-    proj, status = sleeper_projections(season, week, diag)
+    proj, status, proj_positions = sleeper_projections(season, week, diag)
     trending = sleeper_trending(diag)
     weather = {}
     for g in games:
@@ -435,7 +449,7 @@ def main():
                         "rule": "earliest week with any game lacking a final score"},
         "cadence": {"interval_min": interval, "reason": reason},
         "kickoffs": kickoff_table(games, week),
-        "proj": proj, "status": status, "weather": weather,
+        "proj": proj, "proj_positions": proj_positions, "status": status, "weather": weather,
         "experts": ex, "experts_scraped": fp_date, "trending": trending,
     }
     # sanity gate: never publish an overlay that would blank the app
