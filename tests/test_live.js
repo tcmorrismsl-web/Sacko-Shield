@@ -38,7 +38,9 @@ const ESPN_LIVE = {
   schedule: [
     { id: 9, matchupPeriodId: DW - 1, home: { teamId: 1 }, away: { teamId: 3 } },
     { id: 11, matchupPeriodId: DW,
-      home: { teamId: 3, totalPoints: 71.4, rosterForCurrentScoringPeriod: { entries: [
+      // Mid-week, as ESPN really sends it: totalPoints stays 0 until the week is
+      // final and the running score is totalPointsLive.
+      home: { teamId: 3, totalPoints: 0, totalPointsLive: 71.4, rosterForCurrentScoringPeriod: { entries: [
         { lineupSlotId: 0,  playerPoolEntry: { appliedStatTotal: 24.6,
             player: { id: 3918298, fullName: "Josh Allen", defaultPositionId: 1, proTeamId: 2 } } },
         { lineupSlotId: 2,  playerPoolEntry: { appliedStatTotal: 18.1,
@@ -50,7 +52,7 @@ const ESPN_LIVE = {
         { lineupSlotId: 20, playerPoolEntry: { appliedStatTotal: 31.0,
             player: { id: 4361307, fullName: "Trey McBride", defaultPositionId: 4, proTeamId: 22 } } },
       ] } },
-      away: { teamId: 1, totalPoints: 64.2, rosterForCurrentScoringPeriod: { entries: [
+      away: { teamId: 1, totalPoints: 0, totalPointsLive: 64.2, rosterForCurrentScoringPeriod: { entries: [
         { lineupSlotId: 0, playerPoolEntry: { appliedStatTotal: 9.4,
             player: { id: 4360234, fullName: "Evan McPherson", defaultPositionId: 5, proTeamId: 4 } } },
       ] } } },
@@ -71,8 +73,14 @@ window.fetch = async (url) => {
   window.__calls.push(u);
   if (${JSON.stringify(mode)} === "blocked")
     throw new TypeError("Failed to fetch");
-  if (u.includes("fantasy.espn.com"))
-    return { ok: true, status: 200, json: async () => (${JSON.stringify(espn)}) };
+  if (u.includes("fantasy.espn.com")) {
+    // Like the real API: the per-player lineup only comes with view=mScoreboard.
+    const body = JSON.parse(${JSON.stringify(JSON.stringify(espn))});
+    if (!/[?&]view=mScoreboard(&|$)/.test(u))
+      for (const g of body.schedule || [])
+        for (const side of [g.home, g.away]) if (side) delete side.rosterForCurrentScoringPeriod;
+    return { ok: true, status: 200, json: async () => body };
+  }
   if (u.includes("api.sleeper.app"))
     return { ok: true, status: 200, json: async () => (${JSON.stringify(sleeper)}) };
   throw new Error("unexpected host " + u);

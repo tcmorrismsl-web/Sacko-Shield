@@ -3712,7 +3712,9 @@ async function fetchEspnLive(lg, wk) {
   const season = lg.season || S.meta.season;
   const url = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/"
     + season + "/segments/0/leagues/" + encodeURIComponent(lg.league_id)
-    + "?view=mMatchupScore&scoringPeriodId=" + wk;
+    // mMatchupScore carries the pairings and team totals; the per-player
+    // lineup (rosterForCurrentScoringPeriod) only comes with mScoreboard.
+    + "?view=mMatchupScore&view=mScoreboard&scoringPeriodId=" + wk;
   let data = null, lastErr = null;
   for (const creds of ["include", "omit"]) {
     try { data = await grabJSON(url, creds); break; }
@@ -3742,7 +3744,10 @@ async function fetchEspnLive(lg, wk) {
       }
       by_roster[String(side.teamId)] = {
         matchup_id: mid,
-        points: typeof side.totalPoints === "number" ? side.totalPoints : 0,
+        // totalPoints stays 0 until the week is final; the running score
+        // during the week is totalPointsLive
+        points: typeof side.totalPointsLive === "number" ? side.totalPointsLive
+          : typeof side.totalPoints === "number" ? side.totalPoints : 0,
         starters,
       };
     }
