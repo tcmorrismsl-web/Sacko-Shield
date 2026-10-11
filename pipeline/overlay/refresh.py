@@ -58,7 +58,7 @@ COLD = [  # (max F, yards, tds, receptions, field goals)
 
 # Stats kept from Sleeper's projection lines. Anything a league could score;
 # scoreLine() ignores keys a league doesn't pay for.
-DROP_PREFIX = ("pts_", "adp_", "rank", "pos_rank", "gp", "gs", "tm_")
+DROP_PREFIX = ("pts_", "adp_", "pos_adp", "rank", "pos_rank", "gp", "gs", "tm_", "cmp_pct")
 POSITIONS = ["QB", "RB", "WR", "TE", "K"]
 
 
@@ -188,9 +188,9 @@ def sleeper_projections(season, week, diag):
             if pid and line:
                 proj[pid] = {"s": line, "t": team(r.get("team") or pl.get("team") or "")}
                 kept += 1
-            st = {k: pl.get(k) for k in STATUS_KEYS if pl.get(k) not in (None, "", [])}
-            if pid and st:
-                status[pid] = st
+            # only players with a designation; news_updated alone is everyone
+            if pid and pl.get("injury_status"):
+                status[pid] = {k: pl.get(k) for k in STATUS_KEYS if pl.get(k) not in (None, "", [])}
         diag["sources"][f"sleeper_proj_{pos}"]["kept"] = kept
     diag["sleeper_projection_keys"] = sorted(key_union)
     diag["sleeper_projection_player_keys"] = sorted(player_key_union)
@@ -206,6 +206,43 @@ def sleeper_trending(diag):
         if isinstance(rows, list):
             out[kind] = [[str(r.get("player_id")), r.get("count")] for r in rows if r.get("player_id")]
     return out
+
+
+# --- official injury report: practice participation -----------------------------
+INJURIES = "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_{season}.csv"
+PRACTICE = {"Did Not Participate In Practice": "DNP", "Limited Participation in Practice": "Limited",
+            "Full Participation in Practice": "Full"}
+
+
+def practice_report(season, week, id_text, status, diag):
+    """Merge the week's practice participation and game designation into status.
+
+    nflverse's injuries file carries one row per player per week: the latest
+    practice status that week and the report's game designation (Out,
+    Doubtful, Questionable). Matched to Sleeper ids through gsis_id."""
+    text = get(INJURIES.format(season=season), diag, "nflverse_injuries", as_json=False, timeout=60)
+    if not text or not id_text:
+        return
+    gsis2sl = {}
+    for r in csv.DictReader(io.StringIO(id_text)):
+        if r.get("gsis_id") not in (None, "", "NA") and r.get("sleeper_id") not in (None, "", "NA"):
+            gsis2sl[r["gsis_id"]] = r["sleeper_id"]
+    rows = [r for r in csv.DictReader(io.StringIO(text)) if r.get("week") == str(week)]
+    matched = 0
+    for r in rows:
+        sid = gsis2sl.get(r["gsis_id"])
+        prac = PRACTICE.get(r.get("practice_status", ""))
+        if not sid or (not prac and not r.get("report_status")):
+            continue
+        matched += 1
+        e = status.setdefault(sid, {})
+        if prac:
+            e["practice"] = prac
+            if r.get("practice_primary_injury"):
+                e["practice_injury"] = r["practice_primary_injury"]
+        if r.get("report_status"):
+            e["report_status"] = r["report_status"]
+    diag["practice_report"] = {"rows_this_week": len(rows), "matched": matched}
 
 
 # --- weather ----------------------------------------------------------------------
@@ -287,7 +324,7 @@ def experts(season, week, games, prev, diag):
     text = get(FP_WEEKLY, diag, "fp_weekly", as_json=False)
     ids = get(ID_MAP, diag, "id_map", as_json=False, timeout=60)
     if not text or not ids:
-        return {}, None
+        return {}, None, ids
     fp2sl = {}
     for r in csv.DictReader(io.StringIO(ids)):
         if r.get("fantasypros_id") and r.get("sleeper_id") not in (None, "", "NA"):
@@ -306,7 +343,7 @@ def experts(season, week, games, prev, diag):
                                   "match_this_week": matched, "covers_week": covers,
                                   "scrape_date": rows[0].get("scrape_date") if rows else None}
     if not covers:
-        return {}, rows[0].get("scrape_date") if rows else None
+        return {}, rows[0].get("scrape_date") if rows else None, ids
     prev_ex = prev.get("experts", {}) if prev.get("week") == week else {}
     out, unmapped = {}, 0
     num = lambda v: float(v) if v not in (None, "", "NA") else None  # noqa: E731
@@ -328,7 +365,7 @@ def experts(season, week, games, prev, diag):
                     "proj": num(r.get("r2p_pts")), "delta": num(r.get("player_ecr_delta")),
                     "ecr_first": first}
     diag["fp_weekly_coverage"]["unmapped"] = unmapped
-    return out, rows[0].get("scrape_date") if rows else None
+    return out, rows[0].get("scrape_date") if rows else None, ids
 
 
 # --- CORS probe: can the GitHub page itself call these hosts? -----------------------
@@ -388,7 +425,8 @@ def main():
             w = game_weather(g, diag)
             weather[g["home"]] = w
             weather[g["away"]] = w
-    ex, fp_date = experts(season, week, games, prev, diag)
+    ex, fp_date, id_text = experts(season, week, games, prev, diag)
+    practice_report(season, week, id_text, status, diag)
     cors_probe(diag)
 
     overlay = {
