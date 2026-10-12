@@ -452,6 +452,8 @@ def main():
         "proj": proj, "proj_positions": proj_positions, "status": status, "weather": weather,
         "experts": ex, "experts_scraped": fp_date, "trending": trending,
     }
+    # the last 40 publish times, so the real cadence can be audited later
+    overlay["history"] = (prev.get("history") or [])[-39:] + [overlay["generated_at"]]
     # sanity gate: never publish an overlay that would blank the app
     if len(proj) < 150:
         diag["published"] = False

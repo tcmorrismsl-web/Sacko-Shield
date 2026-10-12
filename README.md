@@ -4,8 +4,22 @@ Fantasy football assistant for Sleeper and ESPN leagues (redraft, keeper, dynast
 start/sit, waivers, trades, matchup simulation with live scoring, player analysis,
 league analyzer, Excel export.
 
-The live app is published as a claude.ai artifact and refreshed by scheduled tasks.
-This repo is a snapshot of that published version (Week 5 data, built Oct 8, 2026).
+The main copy is the GitHub Pages site built from this repo. A claude.ai artifact
+copy also exists and is refreshed by the same scheduled Claude data run.
+
+## How the data stays fresh
+
+| What | Where it runs | How often |
+|---|---|---|
+| Live scores (Sleeper and ESPN) | your browser, while the page is open | every 15–45 s during your games, 5 min otherwise |
+| Sleeper projected stat lines, injury designations, practice participation, kickoff-window weather, FantasyPros weekly consensus, Sleeper trending | GitHub Actions, `.github/workflows/refresh.yml` → `overlay.json` on the `data` branch | every 15 min in the 2 h before a kickoff, 30 min during games, 2 h otherwise (GitHub's scheduler can run several minutes late) |
+| Base data: week, schedule, season stats, player database, dynasty values, defenses | scheduled Claude data refresh → `pipeline/publish_public.py` | Sunday and Tuesday, 10:47 ET |
+
+The page fetches `overlay.json` on open and every 15 minutes while visible, and
+lays it over the data built into `index.html`. The status line at the top of each
+tab says how old it is. Weather multipliers are measured from 2016–2025 games;
+see `docs/weather.md`. `diag.json` on the `data` branch records what every source
+returned on the last run.
 
 ## Layout
 
@@ -17,6 +31,8 @@ This repo is a snapshot of that published version (Week 5 data, built Oct 8, 202
 | `pipeline/espn/` | Local only: ESPN draft/transaction pulls and `leagues_private.json` (league IDs, standings) |
 | `tests/` | Playwright suites; `head.txt` is the head claude.ai injects |
 | `docs/` | Design notes: why things work the way they do, and the bugs behind them |
+| `pipeline/overlay/` | The 15-minute refresh job (`refresh.py`, `stadiums.py`) and the page code that applies it (`overlay.js`) |
+| `pipeline/publish_public.py` | Scrubbed, leak-checked publish of rebuilt base data to this repo |
 
 ## Private league data (not in this repo)
 
