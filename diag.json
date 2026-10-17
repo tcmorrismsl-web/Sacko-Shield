@@ -1,0 +1,232 @@
+{
+ "started_at": "2026-10-17T23:22:07Z",
+ "sources": {
+  "nflverse_games": {
+   "url": "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv",
+   "status": 200,
+   "bytes": 2185205,
+   "ms": 202
+  },
+  "sleeper_state": {
+   "url": "https://api.sleeper.app/v1/state/nfl",
+   "status": 200,
+   "bytes": 211,
+   "ms": 165
+  },
+  "sleeper_proj_QB": {
+   "url": "https://api.sleeper.app/projections/nfl/2026/6?season_type=regular&position%5B%5D=QB&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 218217,
+   "ms": 249,
+   "kept": 29
+  },
+  "sleeper_proj_RB": {
+   "url": "https://api.sleeper.app/projections/nfl/2026/6?season_type=regular&position%5B%5D=RB&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 472456,
+   "ms": 288,
+   "kept": 90
+  },
+  "sleeper_proj_WR": {
+   "url": "https://api.sleeper.app/projections/nfl/2026/6?season_type=regular&position%5B%5D=WR&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 839877,
+   "ms": 293,
+   "kept": 140
+  },
+  "sleeper_proj_TE": {
+   "url": "https://api.sleeper.app/projections/nfl/2026/6?season_type=regular&position%5B%5D=TE&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 403375,
+   "ms": 289,
+   "kept": 89
+  },
+  "sleeper_proj_K": {
+   "url": "https://api.sleeper.app/projections/nfl/2026/6?season_type=regular&position%5B%5D=K&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 98296,
+   "ms": 221,
+   "kept": 28
+  },
+  "sleeper_trending_add": {
+   "url": "https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=24&limit=40",
+   "status": 200,
+   "bytes": 1419,
+   "ms": 38
+  },
+  "sleeper_trending_drop": {
+   "url": "https://api.sleeper.app/v1/players/nfl/trending/drop?lookback_hours=24&limit=40",
+   "status": 200,
+   "bytes": 1422,
+   "ms": 159
+  },
+  "weather_JAX": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=51.556&longitude=-0.2796&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-18&end_date=2026-10-18",
+   "status": 200,
+   "bytes": 1646,
+   "ms": 566
+  },
+  "weather_ATL": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=33.7554&longitude=-84.4008&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-18&end_date=2026-10-18",
+   "status": 200,
+   "bytes": 1626,
+   "ms": 565
+  },
+  "weather_CLE": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=41.5061&longitude=-81.6995&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-18&end_date=2026-10-18",
+   "status": 200,
+   "bytes": 1615,
+   "ms": 573
+  },
+  "weather_IND": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=39.7601&longitude=-86.1639&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-18&end_date=2026-10-18",
+   "status": 200,
+   "bytes": 1602,
+   "ms": 563
+  },
+  "weather_NE": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=42.0909&longitude=-71.2643&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-18&end_date=2026-10-18",
+   "status": 200,
+   "bytes": 1595,
+   "ms": 563
+  },
+  "weather_NYG": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=40.8135&longitude=-74.0745&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-18&end_date=2026-10-18",
+   "status": 200,
+   "bytes": 1599,
+   "ms": 610
+  },
+  "weather_PHI": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=39.9008&longitude=-75.1675&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-18&end_date=2026-10-18",
+   "status": 200,
+   "bytes": 1610,
+   "ms": 618
+  },
+  "weather_TB": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=27.9759&longitude=-82.5033&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-18&end_date=2026-10-18",
+   "status": 200,
+   "bytes": 1632,
+   "ms": 572
+  },
+  "weather_KC": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=39.0489&longitude=-94.4839&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-18&end_date=2026-10-18",
+   "status": 200,
+   "bytes": 1621,
+   "ms": 580
+  },
+  "weather_GB": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=44.5013&longitude=-88.0622&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-19&end_date=2026-10-19",
+   "status": 200,
+   "bytes": 1613,
+   "ms": 571
+  },
+  "weather_SF": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=37.403&longitude=-121.97&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-20&end_date=2026-10-20",
+   "status": 200,
+   "bytes": 1603,
+   "ms": 567
+  },
+  "fp_weekly": {
+   "url": "https://raw.githubusercontent.com/dynastyprocess/data/master/files/fp_latest_weekly.csv",
+   "status": 200,
+   "bytes": 348840,
+   "ms": 162
+  },
+  "id_map": {
+   "url": "https://raw.githubusercontent.com/dynastyprocess/data/master/files/db_playerids.csv",
+   "status": 200,
+   "bytes": 2640209,
+   "ms": 253
+  },
+  "nflverse_injuries": {
+   "url": "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_2026.csv",
+   "status": 200,
+   "bytes": 204054,
+   "ms": 224
+  }
+ },
+ "season": 2026,
+ "week_games_csv": 6,
+ "due": true,
+ "interval_min": 120,
+ "reason": "quiet",
+ "week_sleeper": 6,
+ "sleeper_projection_keys": [
+  "category",
+  "company",
+  "date",
+  "game_id",
+  "last_modified",
+  "opponent",
+  "player",
+  "player_id",
+  "season",
+  "season_type",
+  "sport",
+  "stats",
+  "status",
+  "team",
+  "updated_at",
+  "week",
+  "week_shard"
+ ],
+ "sleeper_projection_player_keys": [
+  "fantasy_positions",
+  "first_name",
+  "injury_body_part",
+  "injury_notes",
+  "injury_start_date",
+  "injury_status",
+  "last_name",
+  "metadata",
+  "news_updated",
+  "position",
+  "team",
+  "team_abbr",
+  "team_changed_at",
+  "years_exp"
+ ],
+ "status_fields_seen": [
+  "injury_body_part",
+  "injury_notes",
+  "injury_status",
+  "news_updated"
+ ],
+ "fp_weekly_coverage": {
+  "rows": 992,
+  "with_opponent": 990,
+  "match_this_week": 990,
+  "covers_week": true,
+  "scrape_date": "2026-10-17",
+  "unmapped": 11
+ },
+ "practice_report": {
+  "rows_this_week": 374,
+  "matched": 309
+ },
+ "cors": {
+  "sleeper": {
+   "status": 200,
+   "acao": "*",
+   "acac": "true"
+  },
+  "espn_fantasy": {
+   "status": 404,
+   "acao": "https://tcmorrismsl-web.github.io",
+   "acac": "true"
+  },
+  "raw_github": {
+   "status": 200,
+   "acao": "*",
+   "acac": null
+  }
+ },
+ "published": true,
+ "counts": {
+  "proj": 376,
+  "status": 518,
+  "weather_teams": 26,
+  "experts": 485,
+  "trending_add": 40
+ }
+}
