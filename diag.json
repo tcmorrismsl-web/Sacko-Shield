@@ -1,0 +1,422 @@
+{
+ "started_at": "2026-10-20T18:48:44Z",
+ "sources": {
+  "nflverse_games": {
+   "url": "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv",
+   "status": 200,
+   "bytes": 2185692,
+   "ms": 91
+  },
+  "sleeper_state": {
+   "url": "https://api.sleeper.app/v1/state/nfl",
+   "status": 200,
+   "bytes": 211,
+   "ms": 128
+  },
+  "sleeper_proj_QB": {
+   "url": "https://api.sleeper.app/projections/nfl/2026/7?season_type=regular&position%5B%5D=QB&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 218440,
+   "ms": 229,
+   "kept": 29
+  },
+  "sleeper_proj_RB": {
+   "url": "https://api.sleeper.app/projections/nfl/2026/7?season_type=regular&position%5B%5D=RB&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 477981,
+   "ms": 191,
+   "kept": 102
+  },
+  "sleeper_proj_WR": {
+   "url": "https://api.sleeper.app/projections/nfl/2026/7?season_type=regular&position%5B%5D=WR&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 839530,
+   "ms": 163,
+   "kept": 138
+  },
+  "sleeper_proj_TE": {
+   "url": "https://api.sleeper.app/projections/nfl/2026/7?season_type=regular&position%5B%5D=TE&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 406734,
+   "ms": 218,
+   "kept": 97
+  },
+  "sleeper_proj_K": {
+   "url": "https://api.sleeper.app/projections/nfl/2026/7?season_type=regular&position%5B%5D=K&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 97845,
+   "ms": 177,
+   "kept": 27
+  },
+  "sleeper_trending_add": {
+   "url": "https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=24&limit=40",
+   "status": 200,
+   "bytes": 1448,
+   "ms": 22
+  },
+  "sleeper_trending_drop": {
+   "url": "https://api.sleeper.app/v1/players/nfl/trending/drop?lookback_hours=24&limit=40",
+   "status": 200,
+   "bytes": 1446,
+   "ms": 190
+  },
+  "weather_CHI": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=41.8623&longitude=-87.6167&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-23&end_date=2026-10-23",
+   "status": 200,
+   "bytes": 1593,
+   "ms": 404
+  },
+  "weather_NO": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=48.9245&longitude=2.3602&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-25&end_date=2026-10-25",
+   "status": 200,
+   "bytes": 1643,
+   "ms": 394
+  },
+  "weather_ATL": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=33.7554&longitude=-84.4008&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-25&end_date=2026-10-25",
+   "status": 200,
+   "bytes": 1622,
+   "ms": 514
+  },
+  "weather_BAL": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=39.278&longitude=-76.6227&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-25&end_date=2026-10-25",
+   "status": 200,
+   "bytes": 1594,
+   "ms": 523
+  },
+  "weather_CAR": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=35.2258&longitude=-80.8528&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-25&end_date=2026-10-25",
+   "status": 200,
+   "bytes": 1612,
+   "ms": 521
+  },
+  "weather_HOU": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=29.6847&longitude=-95.4107&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-25&end_date=2026-10-25",
+   "status": 200,
+   "bytes": 1613,
+   "ms": 395
+  },
+  "weather_NYJ": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=40.8135&longitude=-74.0745&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-25&end_date=2026-10-25",
+   "status": 200,
+   "bytes": 1610,
+   "ms": 392
+  },
+  "weather_TEN": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=36.1665&longitude=-86.7713&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-25&end_date=2026-10-25",
+   "status": 200,
+   "bytes": 1592,
+   "ms": 394
+  },
+  "weather_ARI": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=33.5276&longitude=-112.2626&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-25&end_date=2026-10-25",
+   "status": 200,
+   "bytes": 1592,
+   "ms": 393
+  },
+  "weather_SEA": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=47.5952&longitude=-122.3316&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-26&end_date=2026-10-26",
+   "status": 200,
+   "bytes": 1609,
+   "ms": 390
+  },
+  "weather_PHI": {
+   "url": "https://api.open-meteo.com/v1/forecast?latitude=39.9008&longitude=-75.1675&timezone=UTC&hourly=temperature_2m%2Cprecipitation%2Cprecipitation_probability%2Cwind_speed_10m%2Cwind_gusts_10m%2Csnowfall&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&start_date=2026-10-27&end_date=2026-10-27",
+   "status": 200,
+   "bytes": 1595,
+   "ms": 392
+  },
+  "fp_weekly": {
+   "url": "https://raw.githubusercontent.com/dynastyprocess/data/master/files/fp_latest_weekly.csv",
+   "status": 200,
+   "bytes": 126987,
+   "ms": 27
+  },
+  "id_map": {
+   "url": "https://raw.githubusercontent.com/dynastyprocess/data/master/files/db_playerids.csv",
+   "status": 200,
+   "bytes": 2640209,
+   "ms": 36
+  },
+  "nflverse_injuries": {
+   "url": "https://github.com/nflverse/nflverse-data/releases/download/injuries/injuries_2026.csv",
+   "status": 200,
+   "bytes": 204576,
+   "ms": 119
+  },
+  "sleeper_stats_w6_QB": {
+   "url": "https://api.sleeper.app/stats/nfl/2026/6?season_type=regular&position%5B%5D=QB&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 77385,
+   "ms": 186
+  },
+  "sleeper_stats_w6_RB": {
+   "url": "https://api.sleeper.app/stats/nfl/2026/6?season_type=regular&position%5B%5D=RB&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 160934,
+   "ms": 112
+  },
+  "sleeper_stats_w6_WR": {
+   "url": "https://api.sleeper.app/stats/nfl/2026/6?season_type=regular&position%5B%5D=WR&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 245501,
+   "ms": 149
+  },
+  "sleeper_stats_w6_TE": {
+   "url": "https://api.sleeper.app/stats/nfl/2026/6?season_type=regular&position%5B%5D=TE&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 138165,
+   "ms": 115
+  },
+  "sleeper_stats_w6_K": {
+   "url": "https://api.sleeper.app/stats/nfl/2026/6?season_type=regular&position%5B%5D=K&order_by=pts_ppr",
+   "status": 200,
+   "bytes": 31417,
+   "ms": 134
+  }
+ },
+ "season": 2026,
+ "week_games_csv": 7,
+ "due": true,
+ "interval_min": 120,
+ "reason": "quiet",
+ "week_sleeper": 6,
+ "sleeper_projection_keys": [
+  "category",
+  "company",
+  "date",
+  "game_id",
+  "last_modified",
+  "opponent",
+  "player",
+  "player_id",
+  "season",
+  "season_type",
+  "sport",
+  "stats",
+  "status",
+  "team",
+  "updated_at",
+  "week",
+  "week_shard"
+ ],
+ "sleeper_projection_player_keys": [
+  "fantasy_positions",
+  "first_name",
+  "injury_body_part",
+  "injury_notes",
+  "injury_start_date",
+  "injury_status",
+  "last_name",
+  "metadata",
+  "news_updated",
+  "position",
+  "team",
+  "team_abbr",
+  "team_changed_at",
+  "years_exp"
+ ],
+ "status_fields_seen": [
+  "injury_body_part",
+  "injury_notes",
+  "injury_status",
+  "news_updated"
+ ],
+ "fp_weekly_coverage": {
+  "rows": 498,
+  "with_opponent": 496,
+  "match_this_week": 496,
+  "covers_week": true,
+  "scrape_date": "2026-10-20",
+  "unmapped": 6
+ },
+ "practice_report": {
+  "rows_this_week": 0,
+  "matched": 0
+ },
+ "cors": {
+  "sleeper": {
+   "status": 200,
+   "acao": "*",
+   "acac": "true"
+  },
+  "espn_fantasy": {
+   "status": 404,
+   "acao": "https://tcmorrismsl-web.github.io",
+   "acac": "true"
+  },
+  "raw_github": {
+   "status": 200,
+   "acao": "*",
+   "acac": null
+  }
+ },
+ "stats_keys_seen": [
+  "anytime_tds",
+  "bonus_fd_qb",
+  "bonus_fd_rb",
+  "bonus_fd_te",
+  "bonus_fd_wr",
+  "bonus_pass_cmp_25",
+  "bonus_pass_yd_300",
+  "bonus_rec_rb",
+  "bonus_rec_te",
+  "bonus_rec_wr",
+  "bonus_rec_yd_100",
+  "bonus_rush_att_20",
+  "bonus_rush_rec_yd_100",
+  "bonus_rush_td_qb",
+  "bonus_rush_yd_100",
+  "cmp_pct",
+  "def_snp",
+  "fga",
+  "fgm",
+  "fgm_20_29",
+  "fgm_30_39",
+  "fgm_40_49",
+  "fgm_50_59",
+  "fgm_50p",
+  "fgm_60p",
+  "fgm_lng",
+  "fgm_pct",
+  "fgm_yds",
+  "fgm_yds_over_30",
+  "fgmiss",
+  "fgmiss_40_49",
+  "fgmiss_50_59",
+  "fgmiss_50p",
+  "first_td",
+  "fum",
+  "fum_lost",
+  "gms_active",
+  "gp",
+  "gs",
+  "h1_pass_yd",
+  "h1_rec_yd",
+  "h1_rush_yd",
+  "idp_blk_kick",
+  "idp_ff",
+  "idp_int",
+  "idp_pass_def",
+  "idp_tkl",
+  "idp_tkl_ast",
+  "idp_tkl_solo",
+  "kick_pts",
+  "kr",
+  "kr_lng",
+  "kr_yd",
+  "kr_ypa",
+  "off_snp",
+  "pass_2pt",
+  "pass_air_yd",
+  "pass_att",
+  "pass_cmp",
+  "pass_cmp_40p",
+  "pass_fd",
+  "pass_inc",
+  "pass_int",
+  "pass_lng",
+  "pass_rtg",
+  "pass_rush_yd",
+  "pass_rz_att",
+  "pass_sack",
+  "pass_sack_yds",
+  "pass_td",
+  "pass_td_40p",
+  "pass_td_lng",
+  "pass_yd",
+  "pass_ypa",
+  "pass_ypc",
+  "penalty",
+  "penalty_yd",
+  "pos_rank_half_ppr",
+  "pos_rank_ppr",
+  "pos_rank_std",
+  "pr",
+  "pr_lng",
+  "pr_yd",
+  "pr_ypa",
+  "pts_half_ppr",
+  "pts_idp",
+  "pts_ppr",
+  "pts_std",
+  "q1_pass_yd",
+  "q1_rec_yd",
+  "q1_rush_yd",
+  "rec",
+  "rec_0_4",
+  "rec_10_19",
+  "rec_20_29",
+  "rec_2pt",
+  "rec_30_39",
+  "rec_40p",
+  "rec_5_9",
+  "rec_air_yd",
+  "rec_drop",
+  "rec_fd",
+  "rec_lng",
+  "rec_rz_tgt",
+  "rec_td",
+  "rec_td_40p",
+  "rec_td_lng",
+  "rec_tgt",
+  "rec_yar",
+  "rec_yd",
+  "rec_ypr",
+  "rec_ypt",
+  "rush_att",
+  "rush_btkl",
+  "rush_fd",
+  "rush_lng",
+  "rush_rec_yd",
+  "rush_rz_att",
+  "rush_td",
+  "rush_td_lng",
+  "rush_tkl_loss",
+  "rush_tkl_loss_yd",
+  "rush_yac",
+  "rush_yd",
+  "rush_ypa",
+  "st_ff",
+  "st_fum_rec",
+  "st_snp",
+  "st_tkl_solo",
+  "tm_def_snp",
+  "tm_off_snp",
+  "tm_st_snp",
+  "xpa",
+  "xpm",
+  "xpmiss"
+ ],
+ "stats": {
+  "complete_weeks": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "fetched": [
+   6
+  ],
+  "rows": {
+   "1": 458,
+   "2": 458,
+   "3": 456,
+   "4": 444,
+   "5": 423,
+   "6": 397
+  },
+  "partial_week_teams": []
+ },
+ "published": true,
+ "counts": {
+  "proj": 393,
+  "status": 290,
+  "weather_teams": 28,
+  "experts": 374,
+  "trending_add": 40,
+  "stats_weeks": 6
+ }
+}
