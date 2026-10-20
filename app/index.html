@@ -3175,6 +3175,104 @@ function poeChart(p) {
     </div>`;
 }
 
+/* Usage table: last game, last-4 average, this week's projection, season
+   average, the same rows across so a hot or cold stretch reads straight off.
+   Built from per-week stat lines (p.wstats + p.logw). Shares are pooled (his
+   snaps over his team's snaps in those games), never averaged week by week. */
+const USAGE_ROWS = {
+  QB: [["pts"], ["snap"], ["pass_att", "Pass attempts"], ["pass_yd", "Passing yards", 0],
+       ["pass_td", "Passing TDs"], ["pass_int", "Interceptions"], ["rush_att", "Carries"],
+       ["rush_yd", "Rushing yards", 0], ["rush_td", "Rushing TDs"]],
+  RB: [["pts"], ["snap"], ["rush_att", "Carries"], ["rush_yd", "Rushing yards", 0],
+       ["rec_tgt", "Targets"], ["tshare"], ["rec", "Receptions"], ["rec_yd", "Receiving yards", 0],
+       ["td", "Touchdowns"]],
+  WR: [["pts"], ["snap"], ["rec_tgt", "Targets"], ["tshare"], ["rec", "Receptions"],
+       ["rec_yd", "Receiving yards", 0], ["rush_att", "Carries"], ["td", "Touchdowns"]],
+  K:  [["pts"], ["fgm", "Field goals made"], ["fga", "Field goal attempts"], ["xpm", "Extra points"]],
+};
+USAGE_ROWS.TE = USAGE_ROWS.WR;
+
+function usageTable(p) {
+  const rows = USAGE_ROWS[p.pos];
+  if (!rows) return "";
+  const sc = scoringOf(S.league) || DEFAULT_SCORING;
+  const lines = p.wstats || [], wks = p.logw || [];
+  const have = lines.length > 0 && lines.length === wks.length;
+  // the latest week this player's game is done: a finished game in the week
+  // still in progress counts, so a Thursday game shows up Friday morning
+  const doneWk = Math.max(S.meta.completed_week || 0, have ? wks[wks.length - 1] : 0);
+  const val = (ls, key) => {
+    if (!ls.length) return null;
+    const sum = k => ls.reduce((a, l) => a + (+l[k] || 0), 0);
+    if (key === "pts") return ls.reduce((a, l) => a + (scoreLine(l, sc) || 0), 0) / ls.length;
+    if (key === "snap") { const t = sum("_tsnp"); return t ? 100 * sum("_snp") / t : null; }
+    if (key === "tshare") { const t = sum("_tt"); return t ? 100 * sum("rec_tgt") / t : null; }
+    if (key === "td") return (sum("rec_td") + sum("rush_td")) / ls.length;
+    return sum(key) / ls.length;
+  };
+  const last = have && wks[wks.length - 1] === doneWk ? [lines[lines.length - 1]] : [];
+  const l4 = have ? lines.filter((_, i) => wks[i] > doneWk - 4) : [];
+  const proj = key => {
+    if (key === "pts") return pj(p);
+    const s = p.pstats;
+    if (!s || key === "snap" || key === "tshare") return null;
+    if (key === "td") return (s.rec_td || 0) + (s.rush_td || 0);
+    return s[key] ?? null;
+  };
+  // no per-week lines (an older build): season averages from the totals only
+  const flat = {
+    rec_tgt: p.tgt, rec: p.rec, rec_yd: p.recyd, rush_att: p.car, rush_yd: p.ruyd,
+    rush_td: p.rutd, pass_yd: p.payd, pass_td: p.patd, pass_int: p.int, pass_att: p.att,
+    td: (p.rectd || 0) + (p.rutd || 0),
+  };
+  const avg = key => have ? val(lines, key)
+    : key === "pts" ? seasonPPG(p) : key === "snap" ? p.snap : key === "tshare" ? p.tgt_share
+    : (flat[key] != null && p.g ? flat[key] / p.g : null);
+  const label = { pts: "Fantasy points", snap: "Snap share", tshare: "Target share" };
+  const show = (v, d, pct) => v == null ? "—" : fmt(v, d) + (pct ? "%" : "");
+  const body = rows.map(([key, name, dp]) => {
+    const pct = key === "snap" || key === "tshare";
+    const d = dp ?? (pct ? 0 : 1);
+    const a = avg(key), r4 = val(l4, key), ls = val(last, key), pr = proj(key);
+    if ([a, r4, ls, pr].every(v => v == null || v === 0)) return "";
+    // trend arrow when the last 4 run 10% or more off the season
+    const arrow = (r4 != null && Math.abs(a || 0) >= 1 && l4.length >= 2 && l4.length < lines.length
+      && Math.abs(r4 - a) / Math.abs(a) >= 0.10)
+      ? `<span style="color:var(${r4 > a ? "--good" : "--bad"}); font-size:10px"> ${r4 > a ? "▲" : "▼"}</span>` : "";
+    const b = key === "pts";
+    return `<tr><td>${b ? "<b>" : ""}${esc(label[key] || name)}${b ? "</b>" : ""}</td>
+      <td class="n">${show(ls, pct || key === "pts" ? d : 0, pct)}</td>
+      <td class="n">${show(r4, d, pct)}${arrow}</td>
+      <td class="n">${show(pr, d, pct)}</td>
+      <td class="n">${show(a, d, pct)}</td></tr>`;
+  }).join("");
+  const th = (t, title) => `<th class="n" style="cursor:default" title="${esc(title)}">${t}</th>`;
+  return `<div class="tw"><table>
+    <thead><tr><th style="cursor:default"></th>
+      ${th(doneWk ? "Wk " + doneWk : "Last", doneWk ? "Week " + doneWk : "Last game")}
+      ${th("Last 4", `Per game, Weeks ${Math.max(1, doneWk - 3)}–${doneWk}`)}
+      ${th("Proj W" + S.meta.upcoming_week, "This week's projected stat line")}
+      ${th("Season", "Per game, whole season")}</tr></thead>
+    <tbody>${body}</tbody></table></div>
+    <div class="sub">${have && !last.length && doneWk ? (p._statsFresh || !S.statsStamp
+      ? `Didn't play in Week ${doneWk}. `
+      : `No stat line for him after Week ${wks[wks.length - 1]} in the latest feed. `) : ""}Last 4
+      and Season are per game played (${l4.length} of the last 4 weeks, ${p.g || 0} on the
+      season). Shares are pooled: his snaps or targets over his team's in those games.${
+      have ? "" : " Week-by-week lines haven't loaded, so only season averages show."}</div>`;
+}
+
+/* Snap and target share are percentages (0–100) everywhere in the app. Some
+   data builds ship them as fractions (0–1); detect that across the whole
+   file, not per player, and rescale once. */
+function normalizeShares(players) {
+  for (const k of ["snap", "snap_last", "tgt_share"]) {
+    const vals = players.map(p => p[k]).filter(v => typeof v === "number" && v > 0);
+    if (vals.length > 20 && Math.max(...vals) <= 1.0001)
+      for (const p of players) if (typeof p[k] === "number") p[k] = Math.round(p[k] * 1000) / 10;
+  }
+}
+
 function openPlayer(id) {
   const p = S.byId.get(id);
   if (!p) return;
@@ -3230,22 +3328,9 @@ function openPlayer(id) {
       ${kv("Safeties", p.safeties || null)}
       ${kv("Blocked kicks", p.blocks || null)}
     </div>` : `
-    <div class="card pad stack" style="gap:2px">
-      <span class="eyebrow" style="margin-bottom:5px">Volume</span>
-      ${kv("Snap share", p.snap_last != null ? fmt(p.snap_last, 0) + "%" : null,
-           "Most recent game")}
-      ${kv("Snap share, season", p.snap != null ? fmt(p.snap, 0) + "%" : null)}
-      ${kv("Targets", p.tgt || null)}
-      ${kv("Target share", p.tgt_share != null ? fmt(p.tgt_share, 1) + "%" : null)}
-      ${kv("Receptions", p.rec || null)}
-      ${kv("Receiving yards", p.recyd || null)}
-      ${kv("Carries", p.car || null)}
-      ${kv("Rushing yards", p.ruyd || null)}
-      ${kv("Passing yards", p.payd || null)}
-      ${kv("Total touchdowns",
-           ((p.rectd || 0) + (p.rutd || 0) + (p.patd || 0)) || null)}
-      ${kv("WOPR", p.wopr != null ? fmt(p.wopr, 2) : null,
-           "Weighted share of targets and air yards")}
+    <div class="card pad stack" style="gap:9px">
+      <span class="eyebrow">Usage</span>
+      ${usageTable(p)}
     </div>`}
 
     ${p.dst_ctx ? `<div class="card pad stack" style="gap:9px">
@@ -3926,6 +4011,7 @@ async function boot() {
   const [players, schedule, picks, meta, leagues] = await Promise.all(
     ["players", "schedule", "picks", "meta", "leagues"].map(f => loadJSON(`data/${f}.json`)));
 
+  normalizeShares(players);
   S.players = players; S.byId = new Map(players.map(p => [p.id, p]));
   S.sched = schedule.sched; S.dvp = schedule.dvp; S.byes = schedule.byes;
   S.kick = schedule.kickoffs || null;

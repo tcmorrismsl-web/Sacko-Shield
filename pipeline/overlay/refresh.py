@@ -212,6 +212,103 @@ def sleeper_projections(season, week, diag):
     return proj, status, ok_positions
 
 
+# --- Sleeper: actual weekly stat lines ----------------------------------------------
+# Written to stats.json (not overlay.json): ~1 MB raw, so the page fetches it only
+# when overlay.stats_stamp changes, not every 15 minutes. Keys that a league can
+# score are kept as Sleeper names them, so the page scores each week with the
+# league's own table; usage fields carry a leading underscore so scoreLine never
+# prices them:
+#   _snp, _tsnp  offensive snaps, team offensive snaps
+#   _tt, _tay    team targets and team receiving air yards that week (share denominators)
+STAT_DROP = DROP_PREFIX + ("off_snp", "def_snp", "st_snp", "anytime_tds")
+
+def week_stats(season, wk, pos, diag):
+    q = urllib.parse.urlencode({"season_type": "regular", "position[]": pos, "order_by": "pts_ppr"})
+    return get(f"{SLEEPER}/stats/nfl/{season}/{wk}?{q}", diag, f"sleeper_stats_w{wk}_{pos}")
+
+
+def is_rate(k):
+    return k.endswith(("_pct", "_ypa", "_ypr", "_ypc", "_ypt", "_avg", "_rtg", "_lng"))
+
+
+def sleeper_week(season, wk, final_teams, diag):
+    """One week's real stat lines, by Sleeper id. final_teams: only keep
+    players whose game is final (for the week still in progress)."""
+    rows_by_pid, team_tgt, team_ay, keys = {}, {}, {}, set()
+    for pos in POSITIONS:
+        rows = week_stats(season, wk, pos, diag)
+        if not isinstance(rows, list):
+            continue
+        for r in rows:
+            pid = str(r.get("player_id") or "")
+            s = r.get("stats") or {}
+            keys.update(s.keys())
+            tm = team(r.get("team") or (r.get("player") or {}).get("team") or "")
+            if not pid or not tm or (final_teams is not None and tm not in final_teams):
+                continue
+            tgt = float(s.get("rec_tgt") or 0)
+            team_tgt[tm] = team_tgt.get(tm, 0) + tgt
+            team_ay[tm] = team_ay.get(tm, 0) + float(s.get("rec_air_yd") or 0)
+            played = (s.get("gp") or 0) > 0 or (s.get("off_snp") or 0) > 0
+            if not played:
+                continue
+            line = {k: round(float(v), 2) for k, v in s.items()
+                    if isinstance(v, (int, float)) and v != 0
+                    and not k.startswith(STAT_DROP) and not is_rate(k)}
+            if pos == "K":
+                if "fga" in line and "fgmiss" not in line:
+                    line["fgmiss"] = round(max(0.0, line["fga"] - line.get("fgm", 0.0)), 2)
+                if "xpa" in line and "xpmiss" not in line:
+                    line["xpmiss"] = round(max(0.0, line["xpa"] - line.get("xpm", 0.0)), 2)
+            if s.get("off_snp"):
+                line["_snp"] = int(s["off_snp"])
+            if s.get("tm_off_snp"):
+                line["_tsnp"] = int(s["tm_off_snp"])
+            rows_by_pid[pid] = (tm, line)
+    out = {}
+    for pid, (tm, line) in rows_by_pid.items():
+        if team_tgt.get(tm):
+            line["_tt"] = int(team_tgt[tm])
+        if team_ay.get(tm):
+            line["_tay"] = int(team_ay[tm])
+        out[pid] = line
+    diag.setdefault("stats_keys_seen", set()).update(keys)
+    return out
+
+
+def weekly_stats(season, week, games, prev_stats, diag):
+    """Every completed week, plus finished games of the week in progress.
+    Weeks more than one back are reused from the previous stats.json (stat
+    corrections land in the days after a game, so the last full week is
+    always re-pulled)."""
+    done = {}
+    for g in games:
+        done.setdefault(g["week"], []).append(g["final"])
+    complete = sorted(w for w, f in done.items() if w < week and all(f))
+    last_full = complete[-1] if complete else 0
+    prev_weeks = (prev_stats or {}).get("weeks") or {}
+    same_season = (prev_stats or {}).get("season") == season
+    weeks, fetched = {}, []
+    for w in complete:
+        if same_season and str(w) in prev_weeks and w < last_full and prev_weeks[str(w)]:
+            weeks[str(w)] = prev_weeks[str(w)]
+            continue
+        weeks[str(w)] = sleeper_week(season, w, None, diag)
+        fetched.append(w)
+    # the week in progress: only teams whose game is final
+    finals = {t for g in games if g["week"] == week and g["final"] for t in (g["home"], g["away"])}
+    if finals:
+        weeks[str(week)] = sleeper_week(season, week, finals, diag)
+        fetched.append(week)
+    diag["stats"] = {"complete_weeks": complete, "fetched": fetched,
+                     "rows": {w: len(v) for w, v in weeks.items()},
+                     "partial_week_teams": sorted(finals)}
+    diag["stats_keys_seen"] = sorted(diag.get("stats_keys_seen", set()))
+    return {"season": season, "through_week": last_full,
+            "partial_week": week if finals else None,
+            "partial_teams": sorted(finals), "weeks": weeks}
+
+
 def sleeper_trending(diag):
     out = {}
     for kind in ("add", "drop"):
@@ -407,6 +504,7 @@ def cors_probe(diag, origin="https://tcmorrismsl-web.github.io"):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--prev", default="prev/overlay.json")
+    ap.add_argument("--prev-stats", default="prev/stats.json")
     ap.add_argument("--out", default="out")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
@@ -442,6 +540,20 @@ def main():
     ex, fp_date, id_text = experts(season, week, games, prev, diag)
     practice_report(season, week, id_text, status, diag)
     cors_probe(diag)
+    try:
+        prev_stats = json.load(open(a.prev_stats))
+    except Exception:  # noqa: BLE001
+        prev_stats = {}
+    stats = weekly_stats(season, week, games, prev_stats, diag)
+    # only replace stats.json when every completed week came back with rows
+    stats_ok = all(len(v) >= 100 for w, v in stats["weeks"].items()
+                   if int(w) <= stats["through_week"])
+    if stats_ok:
+        stats["generated_at"] = iso(now_utc())
+        stats_stamp = stats["generated_at"]
+    else:
+        diag["stats_refused"] = "a completed week came back short; previous stats.json kept"
+        stats_stamp = prev.get("stats_stamp")
 
     overlay = {
         "v": 1, "generated_at": iso(now_utc()), "season": season, "week": week,
@@ -451,6 +563,8 @@ def main():
         "kickoffs": kickoff_table(games, week),
         "proj": proj, "proj_positions": proj_positions, "status": status, "weather": weather,
         "experts": ex, "experts_scraped": fp_date, "trending": trending,
+        "stats_stamp": stats_stamp, "stats_through": stats["through_week"] if stats_ok
+        else prev.get("stats_through"),
     }
     # the last 40 publish times, so the real cadence can be audited later
     overlay["history"] = (prev.get("history") or [])[-39:] + [overlay["generated_at"]]
@@ -465,6 +579,9 @@ def main():
     diag["counts"] = {"proj": len(proj), "status": len(status), "weather_teams": len(weather),
                       "experts": len(ex), "trending_add": len(trending.get("add", []))}
     json.dump(overlay, open(os.path.join(a.out, "overlay.json"), "w"), separators=(",", ":"))
+    if stats_ok:
+        json.dump(stats, open(os.path.join(a.out, "stats.json"), "w"), separators=(",", ":"))
+        diag["counts"]["stats_weeks"] = len(stats["weeks"])
     json.dump(diag, open(os.path.join(a.out, "diag.json"), "w"), indent=1)
     print(json.dumps(diag["counts"]), reason)
 

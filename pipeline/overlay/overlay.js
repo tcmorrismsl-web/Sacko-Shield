@@ -158,6 +158,83 @@ function applyOverlay(ov) {
   return true;
 }
 
+/* ------------------------------------------------------------ weekly stat lines
+   stats.json (same branch) carries every completed week's real stat lines from
+   Sleeper, plus finished games of the week in progress. It is fetched only when
+   overlay.stats_stamp changes. Applying it REPLACES the season fields built
+   into the page (games, per-week lines, totals, shares, expected points), so
+   the page is never stuck on the week its data was built. A player the file
+   doesn't mention keeps the page's own numbers. */
+const STATS_URL = OVERLAY_URL.replace(/overlay\.json$/, "stats.json");
+const _ppr = l => scoreLine(l, DEFAULT_SCORING) || 0;
+
+function applyStats(st) {
+  if (!st || !st.weeks || Number(st.season) !== Number(S.meta.season)) return false;
+  const weeks = Object.keys(st.weeks).map(Number).sort((a, b) => a - b);
+  const rates = (S.meta.poe && S.meta.poe.rates) || {};
+  let hit = 0;
+  for (const p of S.players) {
+    if (p.pos === "DST") continue;
+    const sid = String(p.sleeper || p.id);
+    const wk = [], lines = [];
+    for (const w of weeks) {
+      const l = st.weeks[String(w)][sid];
+      if (l) { wk.push(w); lines.push(l); }
+    }
+    if (!lines.length) continue;
+    hit++;
+    const sum = {};
+    for (const l of lines) for (const k in l) sum[k] = (sum[k] || 0) + l[k];
+    const pooled = {};
+    for (const k in sum) if (k[0] !== "_") pooled[k] = Math.round(sum[k] * 100) / 100;
+    p._statsFresh = true;
+    p.wstats = lines; p.logw = wk; p.logs = lines.map(l => Math.round(_ppr(l) * 100) / 100);
+    p.g = lines.length; p.sstats = pooled;
+    p.pts = Math.round(_ppr(pooled) * 100) / 100; p.ppg = Math.round(p.pts / p.g * 100) / 100;
+    const n = k => sum[k] || 0;
+    p.tgt = n("rec_tgt"); p.rec = n("rec"); p.recyd = n("rec_yd"); p.rectd = n("rec_td");
+    p.car = n("rush_att"); p.ruyd = n("rush_yd"); p.rutd = n("rush_td");
+    p.payd = n("pass_yd"); p.patd = n("pass_td"); p.int = n("pass_int"); p.att = n("pass_att");
+    // shares, in percent, pooled over the games he played
+    const lastSnap = [...lines].reverse().find(l => l._tsnp);
+    p.snap_last = lastSnap ? Math.round(1000 * (lastSnap._snp || 0) / lastSnap._tsnp) / 10 : null;
+    p.snap = n("_tsnp") ? Math.round(1000 * n("_snp") / n("_tsnp")) / 10 : null;
+    p.tgt_share = n("_tt") ? Math.round(1000 * n("rec_tgt") / n("_tt")) / 10 : null;
+    p.wopr = n("_tt") && n("_tay")
+      ? Math.round((1.5 * n("rec_tgt") / n("_tt") + 0.7 * n("rec_air_yd") / n("_tay")) * 100) / 100
+      : (n("_tt") ? Math.round(1.5 * n("rec_tgt") / n("_tt") * 100) / 100 : null);
+    // expected points from the same opportunity prices the build used
+    const r = rates[p.pos];
+    if (r && p.pos !== "K") {
+      const xfp = p.car * r.per_carry + p.tgt * r.per_target + p.att * r.per_attempt;
+      p.xfp = Math.round(xfp * 100) / 100;
+      p.x_rec = Math.round(p.tgt * r.catch_rate * 100) / 100;
+      p.poe = Math.round((p.pts - xfp) * 100) / 100;
+      p.poe_g = Math.round((p.pts - xfp) / p.g * 100) / 100;
+      p.opps = Math.round(p.car + p.tgt + p.att);
+    }
+  }
+  if (!hit) return false;
+  if (Number(st.through_week) > Number(S.meta.completed_week || 0))
+    S.meta.completed_week = Number(st.through_week);
+  if (S.meta.sources) S.meta.sources.stats_through_week = S.meta.completed_week;
+  if (typeof _replCache !== "undefined") _replCache = null;
+  S.statsStamp = st.generated_at; S.statsHit = hit;
+  return true;
+}
+
+async function loadStats(stamp) {
+  if (!stamp || stamp === S.statsStamp) return false;
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 12000);
+  try {
+    const r = await fetch(`${STATS_URL}?s=${encodeURIComponent(stamp)}`,
+      { cache: "no-store", signal: ctl.signal });
+    if (!r.ok) return false;
+    return applyStats(await r.json());
+  } catch { return false; } finally { clearTimeout(t); }
+}
+
 async function fetchOverlay() {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), OVERLAY_TIMEOUT_MS);
@@ -179,6 +256,7 @@ async function loadOverlay(opts = {}) {
     if (!ov || (S.ov && ov.generated_at === S.ov.generated_at && !opts.force)) return false;
     const weekBefore = S.meta.upcoming_week;
     if (!applyOverlay(ov)) return false;
+    await loadStats(ov.stats_stamp);
     if (opts.render !== false) {
       if (S.meta.upcoming_week !== weekBefore) renderTabs();
       if (S.tab) show(S.tab);
@@ -206,7 +284,8 @@ function overlayStatusHTML() {
   const age = mins < 1 ? "just now" : mins < 60 ? `${mins} min ago`
     : `${Math.round(mins / 6) / 10} h ago`;
   return `<div class="sub" style="margin-bottom:10px">Projections, injuries, weather and
-    expert ranks updated ${age} · checks every ${S.ov.cadence ? S.ov.cadence.interval_min : 15} min</div>`;
+    expert ranks updated ${age} · checks every ${S.ov.cadence ? S.ov.cadence.interval_min : 15} min${
+    S.statsStamp ? ` · player stats through Week ${S.meta.completed_week}` : ""}</div>`;
 }
 
 function wxChip(p) {

@@ -40,6 +40,7 @@ jobs:
           mkdir -p prev
           if git fetch --depth=1 origin data 2>/dev/null; then
             git show origin/data:overlay.json > prev/overlay.json 2>/dev/null || rm -f prev/overlay.json
+            git show origin/data:stats.json > prev/stats.json 2>/dev/null || rm -f prev/stats.json
           fi
 
       - name: Build overlay
@@ -54,6 +55,8 @@ jobs:
           if [ ! -f out/diag.json ]; then echo "not due; nothing to publish"; exit 0; fi
           # a refused run keeps the previous overlay, and still publishes its diag
           if [ ! -f out/overlay.json ] && [ -f prev/overlay.json ]; then cp prev/overlay.json out/overlay.json; fi
+          # stats.json is only rewritten when a fresh pull passed its checks
+          if [ ! -f out/stats.json ] && [ -f prev/stats.json ]; then cp prev/stats.json out/stats.json; fi
           cd out
           git init -q -b data
           git config user.name "sacko-shield-bot"
