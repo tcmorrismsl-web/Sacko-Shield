@@ -1018,8 +1018,11 @@ const parOf = p => {
 /* ---------------------------------------------------------- lineup solving */
 function optimalLineup(ids, lg) {
   const slots = startingSlots(lg);
+  // "Out" only benches a player when the injury report is this week's;
+  // an older report stays a flag
+  const curInj = S.meta.sources && S.meta.sources.injuries_week === S.meta.upcoming_week;
   const pool = ids.map(i => S.byId.get(i)).filter(Boolean)
-                  .filter(p => (pj(p) ?? 0) > 0);
+                  .filter(p => (pj(p) ?? 0) > 0 && !(curInj && p.inj === "Out"));
   // Most restrictive slot first, then a local-search pass to fix greedy misses.
   const order = slots.map((s, i) => ({ s, i, n: (SLOTS[s] || []).length || 99 }))
                      .sort((a, b) => a.n - b.n);
@@ -1052,10 +1055,91 @@ function optimalLineup(ids, lg) {
     }
   }
   const total = out.reduce((a, p) => a + (pj(p) || 0), 0);
-  return { slots, lineup: out, total, bench: pool.filter(p => !used.has(p.id)) };
+  // the bench is everyone not starting: bye weeks and zero projections included
+  const bench = ids.map(i => S.byId.get(i)).filter(p => p && !used.has(p.id));
+  return { slots, lineup: out, total, bench };
 }
 
 const teamTotal = (ids, lg) => optimalLineup(ids, lg).total;
+
+/* Put a set of starters into this league's slots. Sleeper hands its starters
+   back slot by slot ("0" for an empty slot); ESPN hands back a plain list.
+   Either way this returns one player (or null) per starting slot, every
+   player eligible for the slot he sits in, keeping `prefer[i]` in slot i
+   wherever it can. Small search: a lineup is ~10 slots. */
+function seatPlayers(players, slots, prefer) {
+  const ps = players.filter(Boolean);
+  const out = new Array(slots.length).fill(null);
+  let best = null, bestScore = -1;
+  const used = new Set();
+  // most restrictive slot first keeps the search tiny
+  const order = slots.map((s, i) => i)
+    .sort((a, b) => (SLOTS[slots[a]] || []).length - (SLOTS[slots[b]] || []).length);
+  const maxSeat = Math.min(ps.length, slots.length);
+  let steps = 0;
+  (function go(k, seated, kept) {
+    if (++steps > 200000) return;
+    if (k === order.length) {
+      const score = seated * 100 + kept;
+      if (score > bestScore) { bestScore = score; best = out.slice(); }
+      return;
+    }
+    // bound: even seating everyone left can't beat the best
+    if ((seated + Math.min(order.length - k, ps.length - seated)) * 100 + kept + (order.length - k) <= bestScore) return;
+    const i = order[k], ok = SLOTS[slots[i]] || [];
+    const cands = ps.filter(p => !used.has(p.id) && ok.includes(p.pos));
+    const pref = prefer && prefer[i];
+    cands.sort((a, b) => (pref && b.id === pref.id) - (pref && a.id === pref.id) || (pj(b) || 0) - (pj(a) || 0));
+    for (const p of cands) {
+      used.add(p.id); out[i] = p;
+      go(k + 1, seated + 1, kept + (pref && pref.id === p.id ? 1 : 0));
+      used.delete(p.id); out[i] = null;
+      if (bestScore >= maxSeat * 100 + slots.length) return;
+    }
+    go(k + 1, seated, kept);              // leave this slot empty
+  })(0, 0, 0);
+  return best || out;
+}
+
+/** The current lineup, one entry per starting slot. */
+function currentBySlot(r, slots) {
+  const raw = r.starters || [];
+  if (!raw.length) return null;
+  // Sleeper: already slot by slot, and every player fits his slot
+  if (raw.length === slots.length) {
+    const bySlot = raw.map(i => (i && i !== "0") ? S.byId.get(String(i)) || null : null);
+    if (bySlot.every((p, i) => !p || (SLOTS[slots[i]] || []).includes(p.pos))) return bySlot;
+  }
+  return seatPlayers(raw.map(i => S.byId.get(String(i))), slots, null);
+}
+
+const slotName = s => ({ SUPER_FLEX: "Superflex", DEF: "D/ST", WRRB_FLEX: "W/R flex",
+  REC_FLEX: "W/T flex", FLEX: "Flex" })[s] || s;
+const slotTitle = s => (SLOTS[s] || []).length > 1
+  ? `${slotName(s)} (${(SLOTS[s] || []).map(x => x === "DST" ? "D/ST" : x).join("/")})` : slotName(s);
+
+/** Slot-by-slot changes from the current lineup to the best one. Every row
+    is one slot: who is in it now and who should be. Nothing ever crosses
+    positions except through a slot that accepts both. */
+function lineupChanges(r, lg, opt) {
+  const slots = opt.slots;
+  const now = currentBySlot(r, slots);
+  if (!now) return null;
+  // seat the best lineup so anyone already in a good slot stays put
+  const want = seatPlayers(opt.lineup, slots, now);
+  const nowIdx = new Map(now.map((p, i) => [p && p.id, i]));
+  const rows = [];
+  slots.forEach((s, i) => {
+    const a = now[i], b = want[i];
+    if ((a && a.id) === (b && b.id)) return;
+    const from = b && nowIdx.has(b.id) ? slots[nowIdx.get(b.id)] : null;   // a slide, not a bench move
+    rows.push({ slot: s, out: a, inn: b, from });
+  });
+  const curInj = S.meta.sources && S.meta.sources.injuries_week === S.meta.upcoming_week;
+  const nowTotal = now.reduce((t, p) => t + (p && curInj && p.inj === "Out" ? 0 : (pj(p) || 0)), 0);
+  return { rows, now, want, gain: opt.total - nowTotal };
+}
+
 
 /* ------------------------------------------------------------ waiver score */
 /* A defense has no targets, snap share or dynasty value, so the skill-position
@@ -1626,7 +1710,8 @@ function injChip(p) {
   return `<span class="chip ${cls}" title="Report from Week ${wk}">${esc(p.inj[0])}${
     p.inj_note ? " · " + esc(p.inj_note) : ""}</span>`;
 }
-const oppTxt = p => p.opp ? `${p.home ? "vs" : "@"} ${p.opp}` : "no game";
+const oppTxt = p => p.opp ? `${p.home ? "vs" : "@"} ${p.opp}`
+  : (p.team && p.team !== "FA") ? "BYE" : "no team";
 
 function nameCell(p) {
   return `<span class="pos ${p.pos}">${p.pos}</span>
@@ -2131,20 +2216,9 @@ function renderWeek() {
   const r = me();
   const { slots, lineup, total, bench } = optimalLineup(r.players, lg);
 
-  // What Sleeper currently has starting, when we know it.
-  const cur = r.starters && r.starters.length
-    ? r.starters.map(i => S.byId.get(i) || null) : null;
-  const curTotal = cur ? cur.reduce((a, p) => a + (pj(p) || 0), 0) : null;
-
-  const moves = [];
-  if (cur) {
-    const optIds = new Set(lineup.filter(Boolean).map(p => p.id));
-    const curIds = new Set(cur.filter(Boolean).map(p => p.id));
-    const benchNow = [...optIds].filter(i => !curIds.has(i)).map(i => S.byId.get(i));
-    const sitNow   = [...curIds].filter(i => !optIds.has(i)).map(i => S.byId.get(i));
-    benchNow.forEach((inP, i) => { if (sitNow[i]) moves.push([sitNow[i], inP]); });
-  }
-
+  // What the platform currently has starting, slot by slot, when we know it.
+  const ch = lineupChanges(r, lg, { slots, lineup, total });
+  const sf = slots.includes("SUPER_FLEX");
   const flag = lineup.filter(p => p && (p.inj || !p.opp));
   // Only flag consensus disagreement while the weekly rankings cover this week.
   const wkFresh = S.meta.weekly_covers_week === S.meta.upcoming_week;
@@ -2172,18 +2246,23 @@ function renderWeek() {
       ${tile("Your record", matchupLine(r), esc(r.name))}
     </div>
 
-    ${moves.length ? `<div class="card pad stack">
+    ${ch && ch.rows.length ? `<div class="card pad stack">
       <div><span class="eyebrow">Lineup changes</span>
-        <div class="h-sec">${moves.length} move${moves.length > 1 ? "s" : ""} worth
-          ${fmt(total - curTotal, 1)} pts</div></div>
-      ${moves.map(([out, inn]) => `<div class="move">
-        <div><div class="pmeta">Bench</div><div class="pname">${nameCell(out)}</div>
-          <div class="pmeta mono">${fmt(pj(out))} · ${oppTxt(out)}</div></div>
+        <div class="h-sec">${ch.rows.length} slot${ch.rows.length > 1 ? "s" : ""} to change${
+          ch.gain > 0.05 ? ` · +${fmt(ch.gain, 1)} pts` : ""}</div>
+        ${sf ? `<div class="sub">This league has a superflex slot, so a QB can start there.</div>` : ""}</div>
+      ${ch.rows.map(m => `<div class="move">
+        <div><div class="pmeta"><b>${esc(slotTitle(m.slot))}</b> · now</div>${m.out
+          ? `<div class="pname">${nameCell(m.out)}</div>
+             <div class="pmeta mono">${fmt(pj(m.out))} · ${oppTxt(m.out)}</div>`
+          : `<div class="pmeta">empty</div>`}</div>
         <div class="arrow">→</div>
-        <div><div class="pmeta">Start</div><div class="pname">${nameCell(inn)}</div>
-          <div class="pmeta mono">${fmt(pj(inn))} · ${oppTxt(inn)}</div></div>
+        <div><div class="pmeta">${m.inn ? (m.from ? `move in from ${esc(slotName(m.from))}` : "start") : "leave empty"}</div>${m.inn
+          ? `<div class="pname">${nameCell(m.inn)}</div>
+             <div class="pmeta mono">${fmt(pj(m.inn))} · ${oppTxt(m.inn)}</div>`
+          : `<div class="pmeta">no eligible ${esc(slotTitle(m.slot))} with a game — check waivers</div>`}</div>
       </div>`).join("")}
-    </div>` : cur ? `<div class="card pad"><span class="chip good">✓ Optimal</span>
+    </div>` : ch ? `<div class="card pad"><span class="chip good">✓ Optimal</span>
       <span class="sub"> Your current lineup already maximises projected points.</span></div>` : ""}
 
     <div class="card">
@@ -2195,8 +2274,8 @@ function renderWeek() {
       <div class="pad" style="background:var(--card2); border-top:1px solid var(--line)">
         <span class="eyebrow">Bench (${bench.length})</span>
       </div>
-      ${bench.sort((a, b) => pj(b) - pj(a)).slice(0, 10)
-        .map(p => slotRow("BN", p, true)).join("") || `<div class="empty">No bench players with a projection.</div>`}
+      ${bench.sort((a, b) => (!!b.opp - !!a.opp) || (pj(b) || 0) - (pj(a) || 0))
+        .map(p => slotRow("BN", p, true)).join("") || `<div class="empty">No bench players.</div>`}
     </div>
 
     ${(flag.length || risky.length) ? `<div class="card pad stack">
