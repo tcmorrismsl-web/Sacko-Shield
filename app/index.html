@@ -3113,17 +3113,15 @@ function sourceCard() {
   return `<div class="card pad stack" style="gap:8px">
     <span class="eyebrow">Where these numbers come from</span>
     <div class="srcline">
-      <b>Week ${esc(String(S.meta.proj_week ?? "—"))} projections</b> come from Sleeper's
-      projected stat lines for ${esc(String(c.sleeper ?? 0))} players. Anyone Sleeper doesn't
-      cover falls back to Sacko Shield's own model — marked <span class="est">~</span> —
-      which fits a positional curve to FantasyPros rest-of-season consensus
-      (<b>${esc(s.ecr || "—")}</b>) and adjusts for production through Week
-      <b>${esc(String(s.stats_through_week ?? "—"))}</b> and the opponent's fantasy
-      points allowed.<br>
-      The Week <b>${esc(String(s.injuries_week ?? "—"))}</b> injury report is a
-      <em>flag only</em> — it never benches anyone, because it is a week behind.<br>
-      Dynasty values are DynastyProcess, scraped <b>${esc(s.dynasty_values || "—")}</b>.
-      Production, snaps, injuries and schedule are nflverse.
+      <b>Week ${esc(String(S.meta.upcoming_week ?? "—"))} projections</b> are Sleeper's
+      projected stat lines (${esc(String(c.sleeper ?? 0))} players when this copy was built),
+      scored under this league's own settings. Anyone Sleeper doesn't project shows 0.<br>
+      Season production through Week <b>${esc(String(S.meta.completed_week ?? s.stats_through_week ?? "—"))}</b>
+      is Sleeper's actual stat lines; defenses and matchup ranks are nflverse.<br>
+      Injuries are the Week <b>${esc(String(s.injuries_week ?? "—"))}</b> report: a player
+      listed Out is not started, and any other designation is a flag to confirm before lock.<br>
+      Dynasty values are DynastyProcess, scraped <b>${esc(s.dynasty_values || "—")}</b>;
+      rest-of-season ranks are the FantasyPros consensus (<b>${esc(s.ecr || "—")}</b>).
       ${stale ? ` FantasyPros weekly grades still cover Week
         <b>${S.meta.weekly_covers_week}</b>, so they are hidden until they refresh.` : ""}
     </div>

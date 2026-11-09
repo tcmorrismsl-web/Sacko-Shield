@@ -17,6 +17,7 @@ on:
     branches: [main]
     paths:
       - "pipeline/overlay/**"
+      - "pipeline/base/**"
       - ".github/workflows/refresh.yml"
 
 permissions:
@@ -29,7 +30,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,6 +42,7 @@ jobs:
           if git fetch --depth=1 origin data 2>/dev/null; then
             git show origin/data:overlay.json > prev/overlay.json 2>/dev/null || rm -f prev/overlay.json
             git show origin/data:stats.json > prev/stats.json 2>/dev/null || rm -f prev/stats.json
+            git show origin/data:base_state.json > prev/base_state.json 2>/dev/null || rm -f prev/base_state.json
           fi
 
       - name: Build overlay
@@ -50,6 +52,31 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then FORCE="--force"; fi
           python3 pipeline/overlay/refresh.py --prev prev/overlay.json --out out $FORCE
 
+      # The page's baked-in data (week, schedule, player database, values,
+      # season stats, defenses). rebuild.py decides for itself whether any input
+      # has changed since the copy on main was built, and does nothing if not.
+      - name: Rebuild base data when its inputs changed
+        id: base
+        continue-on-error: true
+        run: |
+          if [ ! -f out/diag.json ]; then echo "overlay not due; base not checked"; exit 0; fi
+          OV=out/overlay.json; [ -f "$OV" ] || OV=prev/overlay.json
+          ST=out/stats.json; [ -f "$ST" ] || ST=prev/stats.json
+          python3 pipeline/base/rebuild.py --overlay "$OV" --stats "$ST" \
+            --state-in prev/base_state.json --state-out out/base_state.json --src base_src
+
+      - name: Commit rebuilt base data to main
+        if: steps.base.outputs.rebuilt == 'true'
+        continue-on-error: true
+        run: |
+          git config user.name "sacko-shield-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/data/players.json app/data/schedule.json app/data/picks.json app/data/meta.json index.html
+          if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
+          git commit -q -m "Data rebuild: week ${{ steps.base.outputs.week }} (automatic)"
+          git push -q "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:main
+          echo "pushed base data for week ${{ steps.base.outputs.week }}"
+
       - name: Publish to the data branch
         run: |
           if [ ! -f out/diag.json ]; then echo "not due; nothing to publish"; exit 0; fi
@@ -57,6 +84,7 @@ jobs:
           if [ ! -f out/overlay.json ] && [ -f prev/overlay.json ]; then cp prev/overlay.json out/overlay.json; fi
           # stats.json is only rewritten when a fresh pull passed its checks
           if [ ! -f out/stats.json ] && [ -f prev/stats.json ]; then cp prev/stats.json out/stats.json; fi
+          if [ ! -f out/base_state.json ] && [ -f prev/base_state.json ]; then cp prev/base_state.json out/base_state.json; fi
           cd out
           git init -q -b data
           git config user.name "sacko-shield-bot"

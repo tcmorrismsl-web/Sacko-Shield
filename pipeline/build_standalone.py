@@ -411,9 +411,12 @@ swap('''    <div class="srcline">League: <b>${esc(S.league.platform)} · ${esc(S
       S.live ? " — pulled live from Sleeper just now"
         : hasRosters(S.league) ? " — snapshot taken when this file was built"
         : " — standings only"}.</div>
-    <div class="srcline">This is the standalone build: player data is baked in and
-      refreshes when you rebuild the file; Sleeper leagues refresh themselves every
-      time you open the page.</div>''', "provenance")
+    <div class="srcline">${S.meta.built_by === "github-actions"
+      ? `The data in this page rebuilds itself whenever a new week, new stats or new
+         rankings are published (last rebuilt ${new Date(S.meta.built).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}).
+         Your leagues refresh every time you open the page.`
+      : `This is the standalone build: player data is baked in and refreshes when you
+         rebuild the file; Sleeper leagues refresh themselves every time you open the page.`}</div>''', "provenance")
 
 # ------------------------------------------------------------------- assemble
 # 8. fresh overlay (pipeline/overlay): projections, injuries, practice, weather,
