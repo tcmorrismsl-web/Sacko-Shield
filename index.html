@@ -1502,9 +1502,18 @@ function positionStrength(ids, lg) {
    this league. A tight end room full of dynasty value but starting a 6-point
    player is a need; a position held by one stud and no depth is not. */
 function posLineupPts(ids, lg) {
-  const { lineup } = optimalLineup(ids, lg, rosWeekly);
+  // Only a position's own slots count. A tight end playing FLEX says nothing
+  // about tight end need: in a one-TE league a second and third TE are depth,
+  // not strength. Superflex is the exception for quarterbacks, who fill it in
+  // practice.
+  const { lineup, slots } = optimalLineup(ids, lg, rosWeekly);
   const out = {};
-  for (const p of lineup) if (p) out[p.pos] = (out[p.pos] || 0) + rosWeekly(p);
+  lineup.forEach((p, i) => {
+    if (!p) return;
+    const own = slots[i] === p.pos || (slots[i] === "DEF" && p.pos === "DST")
+      || (slots[i] === "SUPER_FLEX" && p.pos === "QB");
+    if (own) out[p.pos] = (out[p.pos] || 0) + rosWeekly(p);
+  });
   return out;
 }
 function rosterNeeds(ids, lg) {
@@ -1512,11 +1521,27 @@ function rosterNeeds(ids, lg) {
   const league = S.league.rosters.map(r => posLineupPts(r.players, lg));
   const needs = {};
   for (const pos of gradedPositions(lg)) {
+    // Kickers and defenses are streamed week to week: the only real need is
+    // not having one who plays this week (bye, or no projection).
+    if (pos === "K" || pos === "DST") {
+      const playing = ids.map(i => S.byId.get(i))
+        .some(p => p && p.pos === pos && p.opp && (pj(p) ?? 0) > 0);
+      needs[pos] = playing ? { pct: 0.6, pts: mine[pos] || 0, label: "solid" }
+                           : { pct: 0, pts: 0, label: "need" };
+      continue;
+    }
     const all = league.map(x => x[pos] || 0);
     const m = mine[pos] || 0;
     const pct = all.length ? all.filter(v => v < m - 0.05).length / Math.max(1, all.length - 1) : 0.5;
-    needs[pos] = { pct, pts: m, label: pct < 0.25 ? "need" : pct < 0.5 ? "thin"
-                          : pct < 0.78 ? "solid" : "strength" };
+    // Label on the size of the gap, not just the rank: TE9 a point behind the
+    // league's middle TE is thin, not a need. Per lineup slot, in points/week.
+    const sorted = all.slice().sort((a, b) => a - b);
+    const median = sorted.length ? sorted[Math.floor((sorted.length - 1) / 2)] : m;
+    const nSlots = Math.max(1, startingSlots(lg).filter(sl => sl === pos
+      || (sl === "DEF" && pos === "DST") || (sl === "SUPER_FLEX" && pos === "QB")).length);
+    const gap = (m - median) / nSlots;
+    needs[pos] = { pct, pts: m, gap, label: gap <= -2.5 ? "need" : gap <= -1 ? "thin"
+                          : gap >= 2 ? "strength" : "solid" };
   }
   return needs;
 }
@@ -2774,9 +2799,10 @@ function renderWaiver() {
           </div>`;
         }).join("")}
       </div>
-      <div class="sub">Where your starters at each position rank against the other
-        ${lg.teams - 1} rosters, on what they project to score per week for the rest of
-        the season in this league's scoring.</div>
+      <div class="sub">How your starters at each position rank against the other
+        ${lg.teams - 1} rosters, on rest-of-season points per week. Only each position's
+        own lineup slots count, so a spare TE in your flex doesn't make TE look strong.
+        Kickers and defenses only show a need when yours doesn't play this week.</div>
     </div>
 
     <div class="card">
