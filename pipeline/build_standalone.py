@@ -459,7 +459,7 @@ doc = f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="description" content="Dynasty and redraft fantasy football cockpit — start/sit, waivers, trade values, league analysis and Excel export.">
 <meta name="color-scheme" content="light dark">
 <link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
