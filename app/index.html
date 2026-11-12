@@ -246,6 +246,10 @@ td.nm{white-space:normal; min-width:150px; font-weight:600}
 @media(min-width:620px){.sheet{align-items:center}}
 .sheet-in{background:var(--card); border-radius:14px 14px 0 0; width:100%; max-width:560px; max-height:88vh; overflow:auto; padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px))}
 @media(min-width:620px){.sheet-in{border-radius:14px}}
+/* the name, Close and the three numbers stay pinned while the sheet scrolls */
+.sheet-head{position:sticky; top:-18px; z-index:2; background:var(--card);
+  margin:-18px -16px 0; padding:18px 16px 12px; border-bottom:1px solid var(--line);
+  display:flex; flex-direction:column; gap:12px; border-radius:14px 14px 0 0}
 .toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(18px + env(safe-area-inset-bottom,0px)); z-index:70; background:var(--ink); color:var(--paper); padding:9px 15px; border-radius:99px; font-size:13px; font-weight:500; box-shadow:var(--shadow); max-width:88vw}
 /* ---------- matchup ---------- */
 .score{display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:center}
@@ -3707,7 +3711,10 @@ function gameLogChart(p) {
   const shipped = p.pts, restated = seasonPts(p);
   const ratio = exactWeeks ? 1
     : (shipped && restated && Math.abs(shipped) > 1) ? restated / shipped : 1;
-  const vals = pts.map(v => ((+v || 0) - k * perGameRec) * ratio);
+  // weeks scored from their own stat lines are already in this league's
+  // points; only the shipped PPR log needs the reception premium taken out
+  const vals = exactWeeks ? pts.map(v => +v || 0)
+    : pts.map(v => ((+v || 0) - k * perGameRec) * ratio);
   const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
 
   const hi = Math.max(...vals, avg, 1);
@@ -3888,6 +3895,7 @@ function openPlayer(id) {
   el.className = "sheet";
   el.innerHTML = `<div class="sheet-in stack" role="dialog" aria-modal="true"
       aria-label="${esc(p.name)}">
+    <div class="sheet-head">
     <div class="row" style="justify-content:space-between; align-items:flex-start; flex-wrap:nowrap; gap:10px">
       <div style="min-width:0">
         <div class="pname" style="font-size:18px">${nameCell(p)}</div>
@@ -3905,6 +3913,7 @@ function openPlayer(id) {
       ${tile("Per game", fmt(seasonPPG(p)), `${p.g || 0} game${p.g === 1 ? "" : "s"}`)}
       ${tile("Over replacement", (parOf(p) ?? 0) > 0 ? "+" + fmt(parOf(p)) : fmt(parOf(p)),
         "vs a startable " + p.pos)}
+    </div>
     </div>
 
     <div class="card pad stack" style="gap:9px">
@@ -3977,8 +3986,11 @@ function openPlayer(id) {
       <span class="eyebrow">This week</span>
       ${p.inj ? `<div class="note"><b>${esc(p.inj)}</b>${
         p.inj_note ? " — " + esc(p.inj_note) : ""}, from the Week ${
-        S.meta.sources?.injuries_week} report. That report is a week behind, so it
-        flags him rather than benching him.</div>` : ""}
+        S.meta.sources?.injuries_week} report.${
+        S.meta.sources?.injuries_week === S.meta.upcoming_week
+          ? (p.inj === "Out" ? " He won't be in any suggested lineup this week."
+             : " Check his status before kickoff.")
+          : " That report is from an earlier week, so it's a flag, not a benching."}</div>` : ""}
       ${dvp ? `<div class="note">${esc(p.opp)} has allowed the
         <b>${dvp <= 8 ? "most" : dvp >= 25 ? "least" : fmt(dvp, 0) + "th-most"}</b>
         fantasy points to ${p.pos}s this season (rank ${fmt(dvp, 0)} of 32) —
