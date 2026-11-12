@@ -1278,21 +1278,39 @@ function lineupChanges(r, lg, opt) {
   } });
   const nowIdx = new Map(now.map((p, i) => [p && p.id, i]));
   const wantIds = new Set(want.filter(Boolean).map(p => p.id));
-  let rows = [];
+  // Toss-ups: a player coming in who beats the one going out by under a
+  // point is a coin flip, whether the swap is direct or runs through a flex
+  // slide. Keep the current player there and say so, rather than presenting
+  // noise as a change.
   const tossUps = [];
+  for (let guard = 0; guard < 6; guard++) {
+    const inSet = new Set(want.filter(Boolean).map(p => p.id));
+    const nowSet = new Set(now.filter(Boolean).map(p => p.id));
+    const comingIn = want.filter(p => p && !nowSet.has(p.id) && !started(p));
+    const goingOut = now.filter(p => p && !inSet.has(p.id) && !started(p) && val1(p) > 0);
+    let swapped = false;
+    for (const b of comingIn) {
+      for (const a of goingOut) {
+        if (val1(b) - val1(a) >= TOSS_UP) continue;
+        const trial = want.map(p => (p && p.id === b.id) ? null : p).filter(Boolean).concat([a]);
+        const seated = seatPlayers(trial, slots, now);
+        if (seated.filter(Boolean).length !== trial.length) continue;   // a can't fill b's place
+        tossUps.push({ slot: slots[want.findIndex(p => p && p.id === b.id)], out: a, inn: b });
+        want.splice(0, want.length, ...seated);
+        swapped = true; break;
+      }
+      if (swapped) break;
+    }
+    if (!swapped) break;
+  }
+  const wantIdsNow = new Set(want.filter(Boolean).map(p => p.id));
+  let rows = [];
   slots.forEach((s, i) => {
     const a = now[i], b = want[i];
     if ((a && a.id) === (b && b.id)) return;
     if ((a && started(a)) || (b && started(b))) return;          // can't be changed any more
     if (!b) { want[i] = a; return; }   // benching someone for nobody gains nothing
     const from = b && nowIdx.has(b.id) ? slots[nowIdx.get(b.id)] : null;   // a slide, not a bench move
-    // a straight bench-for-starter swap worth under a point is a coin flip:
-    // say so instead of presenting it as a change
-    if (a && b && !from && !wantIds.has(a.id) && val1(a) > 0 && val1(b) - val1(a) < TOSS_UP) {
-      tossUps.push({ slot: s, out: a, inn: b });
-      want[i] = a;
-      return;
-    }
     rows.push({ slot: s, out: a, inn: b, from });
   });
   const nowTotal = now.reduce((t, p) => t + val1(p), 0);
@@ -2925,13 +2943,14 @@ function findDeals(lg, r) {
       if (hi <= 0 || Math.abs(gv - wv) / hi > 0.15) return null;
       const gIds = new Set(give.map(p => p.id)), wIds = new Set(get.map(p => p.id));
       const meAfter = impactOf([...r.players.filter(i => !gIds.has(i)), ...wIds], lg);
+      // a trade is for the rest of the season: judged there, not on one week
       const dMe = deltaOf(myBase, meAfter);
-      if (blend(dMe) < 1) return null;
+      if (dMe.ros < 1) return null;
       const themAfter = impactOf([...t.players.filter(i => !wIds.has(i)), ...gIds], lg);
       const dThem = deltaOf(theirBase, themAfter);
-      if (blend(dThem) < 0.3) return null;
+      if (dThem.ros < 0.3) return null;
       return { team: t, give, get, dMe, dThem, gv, wv,
-               score: Math.min(blend(dMe), 2 * blend(dThem)) };
+               score: Math.min(dMe.ros, 2 * dThem.ros) + 0.1 * dMe.wk };
     };
     for (const g of mine) for (const w of theirs) {
       if (g.pos === w.pos) continue;
