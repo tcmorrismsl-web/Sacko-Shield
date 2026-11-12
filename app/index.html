@@ -3198,13 +3198,15 @@ function tradeFitNotes(needs) {
 /* ---------------------------------------------------------------- 4. league */
 
 /* ------------------------------------------------------- playoff odds
-   The rest of the regular-season schedule comes from the platform (Sleeper's
-   weekly matchups, ESPN's season schedule), read once per league per week
-   in the viewer's browser. Each remaining game is simulated from both teams'
+   The regular-season schedule comes from the platform (Sleeper's weekly
+   matchups, ESPN's season schedule), read once per league per week in the
+   viewer's browser. Each remaining game is simulated from both teams'
    expected weekly score: their best rest-of-season lineup in this league's
-   scoring, blended with what they've actually scored. 10,000 seasons; ties
-   in the standings go to points for. Without a readable schedule the column
-   says so instead of guessing. */
+   scoring, blended with what they've actually scored. 10,000 seasons.
+   Seeding ties: ESPN goes head-to-head among the tied teams, then points for
+   (unless the league is set to seed on points); Sleeper uses points for.
+   A schedule that comes back incomplete is reported as unreadable, never
+   read as "the season is over". */
 const ESPN_BASE = lg => "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/"
   + (lg.season || S.meta.season) + "/segments/0/leagues/" + encodeURIComponent(lg.league_id);
 
@@ -3218,27 +3220,38 @@ async function loadSeasonSchedule(lg) {
       if (lg.sample || !lg.league_id) {
         // sample league: no platform schedule to read
       } else if (lg.source === "espn") {
-        let data = null;
-        for (const creds of ["include", "omit"]) {
-          try { data = await grabJSON(ESPN_BASE(lg) + "?view=mSchedule&view=mSettings", creds); break; }
-          catch {}
-        }
-        if (!data) throw new Error("ESPN schedule unavailable");
-        const ss = (data.settings && data.settings.scheduleSettings) || {};
-        const reg = (data.schedule || []).filter(g => !g.playoffTierType || g.playoffTierType === "NONE");
-        const regEnd = ss.matchupPeriodCount || Math.max(0, ...reg.map(g => g.matchupPeriodId || 0));
-        const weeks = {};
+        let data = null, settings = null;
+        outer: for (const q of ["?view=mMatchupScore&view=mSchedule&view=mSettings", "?view=mMatchupScore", "?view=mSettings"])
+          for (const creds of ["include", "omit"]) {
+            try {
+              const d = await grabJSON(ESPN_BASE(lg) + q, creds);
+              if (d && d.settings && d.settings.scheduleSettings && !settings) settings = d.settings;
+              if (d && Array.isArray(d.schedule) && d.schedule.length && !data) data = d;
+              if (data && settings) break outer;
+              if (d) break;   // answered; try the next view set rather than other creds
+            } catch {}
+          }
+        if (!data) throw new Error("ESPN didn't return the schedule");
+        const ss = ((settings || data.settings || {}).scheduleSettings) || {};
+        const reg = data.schedule.filter(g => !g.playoffTierType || g.playoffTierType === "NONE");
+        const regEnd = Number(ss.matchupPeriodCount) || Math.max(0, ...reg.map(g => +g.matchupPeriodId || 0));
+        const weeks = {}, played = [];
         for (const g of reg) {
-          const w = g.matchupPeriodId;
-          if (w < wk || w > regEnd || !g.home || !g.away) continue;
-          (weeks[w] = weeks[w] || []).push([String(g.home.teamId), String(g.away.teamId)]);
+          const w = +g.matchupPeriodId;
+          if (!g.home || !g.away || g.home.teamId == null || g.away.teamId == null || w > regEnd) continue;
+          const h = String(g.home.teamId), aw = String(g.away.teamId);
+          if (w >= wk) (weeks[w] = weeks[w] || []).push([h, aw]);
+          else if (g.winner === "HOME") played.push([h, aw]);
+          else if (g.winner === "AWAY") played.push([aw, h]);
         }
-        out = { wk, weeks, regEnd, playoffTeams: ss.playoffTeamCount || null };
+        const rule = String(ss.playoffSeedingRule || "");
+        out = { wk, weeks, regEnd, playoffTeams: Number(ss.playoffTeamCount) || null, played,
+                tiebreak: /POINT/i.test(rule) ? "pf" : "h2h" };
       } else {
         const base = "https://api.sleeper.app/v1/league/" + encodeURIComponent(lg.league_id);
         const info = await grabJSON(base);
         const st = (info && info.settings) || {};
-        const regEnd = (st.playoff_week_start || 15) - 1;
+        const regEnd = (Number(st.playoff_week_start) || 15) - 1;
         const ws = []; for (let w = wk; w <= regEnd; w++) ws.push(w);
         const res = await Promise.all(ws.map(w => grabJSON(base + "/matchups/" + w).catch(() => null)));
         const weeks = {};
@@ -3246,15 +3259,58 @@ async function loadSeasonSchedule(lg) {
           if (!Array.isArray(rows)) return;
           const by = {};
           for (const r of rows) if (r.matchup_id != null) (by[r.matchup_id] = by[r.matchup_id] || []).push(String(r.roster_id));
-          weeks[ws[i]] = Object.values(by).filter(x => x.length === 2);
+          const pairs = Object.values(by).filter(x => x.length === 2);
+          if (pairs.length) weeks[ws[i]] = pairs;
         });
-        out = { wk, weeks, regEnd, playoffTeams: st.playoff_teams || null };
+        out = { wk, weeks, regEnd, playoffTeams: Number(st.playoff_teams) || null, played: [],
+                tiebreak: "pf" };
+      }
+      // every remaining regular-season week must have games, or the read failed
+      if (out.weeks && out.regEnd) {
+        for (let w = wk; w <= out.regEnd; w++)
+          if (!(out.weeks[w] || []).length) { out.err = "schedule incomplete (Week " + w + ")"; out.weeks = null; break; }
       }
     } catch (e) { out = { wk, weeks: null, err: String(e.message || e) }; }
     lg._sched = out; lg._schedP = null; lg._odds = null;
     return out;
   })();
   return lg._schedP;
+}
+
+// Seed order: wins, then (h2h) head-to-head record among the tied teams,
+// then points for. H[i*n+j] = times i beat j.
+function seedOrder(n, W, P, H, tb) {
+  const ord = [...Array(n).keys()].sort((x, y) => (W[y] - W[x]) || (P[y] - P[x]));
+  if (tb !== "h2h" || !H) return ord;
+  for (let i = 0; i < n;) {
+    let j = i + 1;
+    while (j < n && W[ord[j]] === W[ord[i]]) j++;
+    if (j - i > 1) {
+      const g = ord.slice(i, j), pct = new Map();
+      for (const a of g) {
+        let w = 0, gp = 0;
+        for (const b of g) if (a !== b) { const x = H[a * n + b], y = H[b * n + a]; w += x; gp += x + y; }
+        pct.set(a, gp ? w / gp : 0.5);
+      }
+      g.sort((a, b) => (pct.get(b) - pct.get(a)) || (P[b] - P[a]));
+      for (let k = 0; k < g.length; k++) ord[i + k] = g[k];
+    }
+    i = j;
+  }
+  return ord;
+}
+
+function currentSeeds(lg) {
+  const sc = lg._sched, rs = lg.rosters, n = rs.length;
+  const idx = new Map(rs.map((r, i) => [r.id, i]));
+  const W = rs.map(r => r.wins || 0), P = rs.map(r => r.pf || 0);
+  let H = null;
+  if (sc && sc.played) {
+    H = new Int32Array(n * n);
+    for (const [w, l] of sc.played) if (idx.has(w) && idx.has(l)) H[idx.get(w) * n + idx.get(l)]++;
+  }
+  const tb = sc && sc.tiebreak ? sc.tiebreak : (lg.source === "espn" ? "h2h" : "pf");
+  return { order: seedOrder(n, W, P, H, tb).map(i => rs[i].id), H, tb, h2hKnown: !!H };
 }
 
 function playoffOdds(lg) {
@@ -3271,34 +3327,36 @@ function playoffOdds(lg) {
     const ros = rosTotal(r.players || [], lg), now = teamTotal(r.players || [], lg);
     const blendM = (x) => pfpg != null && x > 0 ? 0.6 * x + 0.4 * pfpg : (x > 0 ? x : (pfpg || 100));
     const mRos = blendM(ros), mNow = blendM(now);
-    return { id: r.id, wins: r.wins || 0, pf: r.pf || 0, mRos, mNow,
-             sd: Math.max(12, 0.17 * mRos) };
+    return { id: r.id, wins: r.wins || 0, pf: r.pf || 0, mRos, mNow, sd: Math.max(12, 0.17 * mRos) };
   });
   const idx = new Map(teams.map((t, i) => [t.id, i]));
   const games = [];
   for (const [w, pairs] of Object.entries(sc.weeks))
     for (const [a, b] of pairs) if (idx.has(a) && idx.has(b)) games.push([Number(w), idx.get(a), idx.get(b)]);
+  const cur = currentSeeds(lg);
+  const H0 = cur.H || new Int32Array(n * n), tb = cur.tb;
   const rnd = mulberry32(12345 + wkNow);
-  const z = () => { let u = 0, v = 0; while (!u) u = rnd(); v = rnd();
+  const z = () => { let u = 0; while (!u) u = rnd(); const v = rnd();
     return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
-  const N = 10000, made = new Array(n).fill(0);
-  const W = new Float64Array(n), P = new Float64Array(n), order = [...Array(n).keys()];
+  const N = games.length ? 10000 : 1, made = new Array(n).fill(0);
+  const W = new Float64Array(n), P = new Float64Array(n), H = new Int32Array(n * n);
   for (let s = 0; s < N; s++) {
     for (let i = 0; i < n; i++) { W[i] = teams[i].wins; P[i] = teams[i].pf; }
+    H.set(H0);
     for (const [w, a, b] of games) {
-      const ta = teams[a], tb = teams[b];
+      const ta = teams[a], tb_ = teams[b];
       const sa = (w === wkNow ? ta.mNow : ta.mRos) + ta.sd * z();
-      const sb = (w === wkNow ? tb.mNow : tb.mRos) + tb.sd * z();
+      const sb = (w === wkNow ? tb_.mNow : tb_.mRos) + tb_.sd * z();
       P[a] += sa; P[b] += sb;
-      if (sa > sb) W[a]++; else W[b]++;
+      if (sa > sb) { W[a]++; H[a * n + b]++; } else { W[b]++; H[b * n + a]++; }
     }
-    order.sort((x, y) => (W[y] - W[x]) || (P[y] - P[x]));
+    const order = seedOrder(n, W, P, H, tb);
     for (let k = 0; k < spots && k < n; k++) made[order[k]]++;
   }
   const odds = {};
   teams.forEach((t, i) => { odds[t.id] = made[i] / N; });
   lg._odds = { key, odds, spots, assumedSpots: !sc.playoffTeams, regEnd: sc.regEnd,
-               from: wkNow, games: games.length };
+               from: wkNow, games: games.length, tb };
   return lg._odds;
 }
 const oddsCell = (lg, id) => {
@@ -3340,19 +3398,24 @@ function renderLeague() {
   const odds = playoffOdds(lg);
   let view = "standings";
   try { view = localStorage.getItem("sacko.leagueView") || "standings"; } catch {}
-  const standings = rows.slice().sort((a, b) =>
-    (b.wins - a.wins) || (a.losses - b.losses) || ((b.pf || 0) - (a.pf || 0)));
+  const seeds = currentSeeds(lg);
+  const rowById = new Map(rows.map(r => [r.id, r]));
+  const standings = seeds.order.map(id => rowById.get(id)).filter(Boolean);
+  const tbText = seeds.tb === "h2h"
+    ? (seeds.h2hKnown ? "ties broken by head-to-head record among the tied teams, then points for"
+                      : "ties broken by head-to-head, then points for (head-to-head results still loading — points for until then)")
+    : "ties broken by points for";
   const oddsNote = odds && !odds.games
     ? `Playoff odds: the regular season is over, so these follow the final standings
-       (top ${odds.spots}, ties broken by points for).`
+       (top ${odds.spots}, ${tbText}).`
     : odds
     ? `Playoff odds: the rest of the regular season (Weeks ${odds.from}–${odds.regEnd}) simulated
        10,000 times from each team's best rest-of-season lineup and points scored so far;
        top ${odds.spots} make it${odds.assumedSpots ? " (assumed: this league's playoff size isn't readable)" : ""},
-       ties broken by points for.`
+       ${tbText}.`
     : lg._sched && !lg._sched.weeks
-      ? `Playoff odds need this league's remaining schedule, and ${esc(lg.platform)} didn't return it.`
-      : "Playoff odds are loading the remaining schedule.";
+      ? `Playoff odds need this league's remaining schedule, and ${esc(lg.platform)} didn't return it in full, so no odds are shown rather than a guess. Order: wins, ${tbText}.`
+      : `Playoff odds are loading the remaining schedule. Order: wins, ${tbText}.`;
   const toggle = `<div class="seg" role="tablist" aria-label="League view">
       <button role="tab" data-lview="standings" aria-selected="${view === "standings"}">Standings</button>
       <button role="tab" data-lview="power" aria-selected="${view === "power"}">Power rankings</button>
@@ -3372,16 +3435,16 @@ function renderLeague() {
       </div>
       ${view === "standings" ? `
       <div class="tw"><table><thead><tr>
-        <th>#</th><th>Team</th><th class="n">W-L</th><th class="n">PF</th><th class="n">PA</th>
-        <th class="n">Playoffs</th>
+        <th>#</th><th>Team</th><th class="n">W-L</th><th class="n">Playoffs</th>
+        <th class="n">PF</th><th class="n">PA</th>
       </tr></thead><tbody>
       ${standings.map((r, i) => `<tr${me_(r.id)}>
         <td class="n">${i + 1}</td>
         <td class="nm">${esc(r.name)}${youChip(r.id)}</td>
         <td class="n">${r.wins}-${r.losses}${r.ties ? "-" + r.ties : ""}</td>
+        <td class="n"><b>${oddsCell(lg, r.id)}</b></td>
         <td class="n">${fmt(r.pf || 0, 1)}</td>
         <td class="n">${fmt(r.pa || 0, 1)}</td>
-        <td class="n"><b>${oddsCell(lg, r.id)}</b></td>
       </tr>`).join("")}
       </tbody></table></div>
       <div class="pad sub">${oddsNote}</div>
