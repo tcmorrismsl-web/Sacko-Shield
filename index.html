@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" sizes="48x48" href="brand/favicon.png">
 <link rel="icon" type="image/svg+xml" href="brand/logo.svg">
 <meta name="apple-mobile-web-app-title" content="Sacko Shield">
-<meta name="sacko-build" content="fb92c8624221">
+<meta name="sacko-build" content="34facac44b56">
 <meta name="theme-color" content="#0b0b0c">
 <style>
   :root {
@@ -163,6 +163,9 @@ main{max-width:1180px; margin:0 auto; padding-block:18px 64px; padding-left:16px
 .stat.down{background:var(--bad-soft); color:var(--bad)}
 .stats{display:flex; flex-wrap:wrap; gap:6px}
 .move.plain{border-color:var(--line); background:var(--card2)}
+.seg{display:inline-flex; background:var(--sunk); border-radius:9px; padding:3px; gap:2px; align-self:flex-start}
+.seg button{border:0; background:none; padding:7px 14px; border-radius:7px; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; min-height:34px}
+.seg button[aria-selected="true"]{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(16,32,30,.12)}
 .srcbox > summary{cursor:pointer; list-style:none; display:flex; justify-content:space-between; align-items:center}
 .srcbox > summary::-webkit-details-marker{display:none}
 .srcbox > summary::after{content:"+"; font-size:16px; font-weight:600; color:var(--muted); letter-spacing:0}
@@ -3240,6 +3243,118 @@ function tradeFitNotes(needs) {
 }
 
 /* ---------------------------------------------------------------- 4. league */
+
+/* ------------------------------------------------------- playoff odds
+   The rest of the regular-season schedule comes from the platform (Sleeper's
+   weekly matchups, ESPN's season schedule), read once per league per week
+   in the viewer's browser. Each remaining game is simulated from both teams'
+   expected weekly score: their best rest-of-season lineup in this league's
+   scoring, blended with what they've actually scored. 10,000 seasons; ties
+   in the standings go to points for. Without a readable schedule the column
+   says so instead of guessing. */
+const ESPN_BASE = lg => "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/"
+  + (lg.season || S.meta.season) + "/segments/0/leagues/" + encodeURIComponent(lg.league_id);
+
+async function loadSeasonSchedule(lg) {
+  const wk = Number(S.meta.upcoming_week);
+  if (lg._sched && lg._sched.wk === wk) return lg._sched;
+  if (lg._schedP) return lg._schedP;
+  lg._schedP = (async () => {
+    let out = { wk, weeks: null, err: "no league id" };
+    try {
+      if (lg.sample || !lg.league_id) {
+        // sample league: no platform schedule to read
+      } else if (lg.source === "espn") {
+        let data = null;
+        for (const creds of ["include", "omit"]) {
+          try { data = await grabJSON(ESPN_BASE(lg) + "?view=mSchedule&view=mSettings", creds); break; }
+          catch {}
+        }
+        if (!data) throw new Error("ESPN schedule unavailable");
+        const ss = (data.settings && data.settings.scheduleSettings) || {};
+        const reg = (data.schedule || []).filter(g => !g.playoffTierType || g.playoffTierType === "NONE");
+        const regEnd = ss.matchupPeriodCount || Math.max(0, ...reg.map(g => g.matchupPeriodId || 0));
+        const weeks = {};
+        for (const g of reg) {
+          const w = g.matchupPeriodId;
+          if (w < wk || w > regEnd || !g.home || !g.away) continue;
+          (weeks[w] = weeks[w] || []).push([String(g.home.teamId), String(g.away.teamId)]);
+        }
+        out = { wk, weeks, regEnd, playoffTeams: ss.playoffTeamCount || null };
+      } else {
+        const base = "https://api.sleeper.app/v1/league/" + encodeURIComponent(lg.league_id);
+        const info = await grabJSON(base);
+        const st = (info && info.settings) || {};
+        const regEnd = (st.playoff_week_start || 15) - 1;
+        const ws = []; for (let w = wk; w <= regEnd; w++) ws.push(w);
+        const res = await Promise.all(ws.map(w => grabJSON(base + "/matchups/" + w).catch(() => null)));
+        const weeks = {};
+        res.forEach((rows, i) => {
+          if (!Array.isArray(rows)) return;
+          const by = {};
+          for (const r of rows) if (r.matchup_id != null) (by[r.matchup_id] = by[r.matchup_id] || []).push(String(r.roster_id));
+          weeks[ws[i]] = Object.values(by).filter(x => x.length === 2);
+        });
+        out = { wk, weeks, regEnd, playoffTeams: st.playoff_teams || null };
+      }
+    } catch (e) { out = { wk, weeks: null, err: String(e.message || e) }; }
+    lg._sched = out; lg._schedP = null; lg._odds = null;
+    return out;
+  })();
+  return lg._schedP;
+}
+
+function playoffOdds(lg) {
+  const sc = lg._sched;
+  if (!sc || !sc.weeks) return null;
+  const key = S.meta.upcoming_week + "|" + (S.ov && S.ov.generated_at) + "|" + lg.rosters.map(r => r.wins + "-" + r.losses).join(",");
+  if (lg._odds && lg._odds.key === key) return lg._odds;
+  const n = lg.rosters.length;
+  const spots = sc.playoffTeams || (n <= 8 ? 4 : 6);
+  const wkNow = Number(S.meta.upcoming_week);
+  const teams = lg.rosters.map(r => {
+    const g = (r.wins || 0) + (r.losses || 0) + (r.ties || 0);
+    const pfpg = g ? (r.pf || 0) / g : null;
+    const ros = rosTotal(r.players || [], lg), now = teamTotal(r.players || [], lg);
+    const blendM = (x) => pfpg != null && x > 0 ? 0.6 * x + 0.4 * pfpg : (x > 0 ? x : (pfpg || 100));
+    const mRos = blendM(ros), mNow = blendM(now);
+    return { id: r.id, wins: r.wins || 0, pf: r.pf || 0, mRos, mNow,
+             sd: Math.max(12, 0.17 * mRos) };
+  });
+  const idx = new Map(teams.map((t, i) => [t.id, i]));
+  const games = [];
+  for (const [w, pairs] of Object.entries(sc.weeks))
+    for (const [a, b] of pairs) if (idx.has(a) && idx.has(b)) games.push([Number(w), idx.get(a), idx.get(b)]);
+  const rnd = mulberry32(12345 + wkNow);
+  const z = () => { let u = 0, v = 0; while (!u) u = rnd(); v = rnd();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const N = 10000, made = new Array(n).fill(0);
+  const W = new Float64Array(n), P = new Float64Array(n), order = [...Array(n).keys()];
+  for (let s = 0; s < N; s++) {
+    for (let i = 0; i < n; i++) { W[i] = teams[i].wins; P[i] = teams[i].pf; }
+    for (const [w, a, b] of games) {
+      const ta = teams[a], tb = teams[b];
+      const sa = (w === wkNow ? ta.mNow : ta.mRos) + ta.sd * z();
+      const sb = (w === wkNow ? tb.mNow : tb.mRos) + tb.sd * z();
+      P[a] += sa; P[b] += sb;
+      if (sa > sb) W[a]++; else W[b]++;
+    }
+    order.sort((x, y) => (W[y] - W[x]) || (P[y] - P[x]));
+    for (let k = 0; k < spots && k < n; k++) made[order[k]]++;
+  }
+  const odds = {};
+  teams.forEach((t, i) => { odds[t.id] = made[i] / N; });
+  lg._odds = { key, odds, spots, assumedSpots: !sc.playoffTeams, regEnd: sc.regEnd,
+               from: wkNow, games: games.length };
+  return lg._odds;
+}
+const oddsCell = (lg, id) => {
+  const o = lg._odds;
+  if (!o) return lg._sched && !lg._sched.weeks ? "—" : "…";
+  const v = o.odds[id];
+  return v >= 0.995 ? ">99%" : v <= 0.005 ? "<1%" : Math.round(v * 100) + "%";
+};
+
 function renderLeague() {
   const lg = S.league;
   if (!hasRosters(lg)) { renderStandingsOnly(); return; }
@@ -3265,15 +3380,61 @@ function renderLeague() {
   for (const pos of ["QB", "RB", "WR", "TE"])
     posMax[pos] = Math.max(...rows.map(r => r.st[pos].top), 1);
 
+  // playoff odds: read the schedule once, simulate, then re-render
+  if (!lg._sched || lg._sched.wk !== Number(S.meta.upcoming_week)) {
+    loadSeasonSchedule(lg).then(() => { if (S.tab === "league" && S.league === lg) renderLeague(); });
+  }
+  const odds = playoffOdds(lg);
+  let view = "standings";
+  try { view = localStorage.getItem("sacko.leagueView") || "standings"; } catch {}
+  const standings = rows.slice().sort((a, b) =>
+    (b.wins - a.wins) || (a.losses - b.losses) || ((b.pf || 0) - (a.pf || 0)));
+  const oddsNote = odds && !odds.games
+    ? `Playoff odds: the regular season is over, so these follow the final standings
+       (top ${odds.spots}, ties broken by points for).`
+    : odds
+    ? `Playoff odds: the rest of the regular season (Weeks ${odds.from}–${odds.regEnd}) simulated
+       10,000 times from each team's best rest-of-season lineup and points scored so far;
+       top ${odds.spots} make it${odds.assumedSpots ? " (assumed: this league's playoff size isn't readable)" : ""},
+       ties broken by points for.`
+    : lg._sched && !lg._sched.weeks
+      ? `Playoff odds need this league's remaining schedule, and ${esc(lg.platform)} didn't return it.`
+      : "Playoff odds are loading the remaining schedule.";
+  const toggle = `<div class="seg" role="tablist" aria-label="League view">
+      <button role="tab" data-lview="standings" aria-selected="${view === "standings"}">Standings</button>
+      <button role="tab" data-lview="power" aria-selected="${view === "power"}">Power rankings</button>
+    </div>`;
+  const me_ = id => id === S.myTeam ? ' style="background:var(--brand-soft)"' : "";
+  const youChip = id => id === S.myTeam ? ' <span class="chip acc">you</span>' : "";
+
   $("#p-league").innerHTML = `
     <div class="card">
-      <div class="pad row" style="justify-content:space-between; border-bottom:1px solid var(--line)">
-        <div><span class="eyebrow">${esc(lg.name)} · ${lg.teams} teams · ${esc(lg.type)}</span>
-          <div class="h-sec">Power rankings</div></div>
-        <button class="btn sm ghost" data-export="league">Export</button>
+      <div class="pad stack" style="gap:10px; border-bottom:1px solid var(--line)">
+        <div class="row" style="justify-content:space-between">
+          <div><span class="eyebrow">${esc(lg.name)} · ${lg.teams} teams · ${esc(lg.type)}</span>
+            <div class="h-sec">${view === "standings" ? "Standings" : "Power rankings"}</div></div>
+          <button class="btn sm ghost" data-export="league">Export</button>
+        </div>
+        ${toggle}
       </div>
+      ${view === "standings" ? `
       <div class="tw"><table><thead><tr>
-        <th>#</th><th>Team</th><th class="n">Power</th><th class="n">W-L</th>
+        <th>#</th><th>Team</th><th class="n">W-L</th><th class="n">PF</th><th class="n">PA</th>
+        <th class="n">Playoffs</th>
+      </tr></thead><tbody>
+      ${standings.map((r, i) => `<tr${me_(r.id)}>
+        <td class="n">${i + 1}</td>
+        <td class="nm">${esc(r.name)}${youChip(r.id)}</td>
+        <td class="n">${r.wins}-${r.losses}${r.ties ? "-" + r.ties : ""}</td>
+        <td class="n">${fmt(r.pf || 0, 1)}</td>
+        <td class="n">${fmt(r.pa || 0, 1)}</td>
+        <td class="n"><b>${oddsCell(lg, r.id)}</b></td>
+      </tr>`).join("")}
+      </tbody></table></div>
+      <div class="pad sub">${oddsNote}</div>
+    </div>` : `
+      <div class="tw"><table><thead><tr>
+        <th>#</th><th>Team</th><th class="n">Power</th><th class="n">Playoffs</th><th class="n">W-L</th>
         <th class="n">Wk ${S.meta.upcoming_week}</th>
         <th class="n">${isDynasty(lg) ? "Dynasty value" : "ROS pts"}</th>
         ${isDynasty(lg) ? `<th class="n">U25 value</th>` : ""}<th>Best asset</th>
@@ -3284,6 +3445,7 @@ function renderLeague() {
         <td class="nm">${esc(r.name)}${r.id === S.myTeam
           ? ' <span class="chip acc">you</span>' : ""}</td>
         <td class="n"><b>${r.power}</b></td>
+        <td class="n">${oddsCell(lg, r.id)}</td>
         <td class="n">${r.wins}-${r.losses}</td>
         <td class="n">${fmt(r.proj, 1)}</td>
         <td class="n">${fmt(r.dyn, 0)}</td>
@@ -3295,8 +3457,8 @@ function renderLeague() {
         ${valueLabel()}, weighted ${Math.round(w * 100)}/${Math.round((1 - w) * 100)}
         for a ${esc(lg.type)} league. ${isDynasty(lg)
           ? "Nothing here is priced on one week alone."
-          : "No dynasty value is used — this league has no future seasons."}</div>
-    </div>
+          : "No dynasty value is used — this league has no future seasons."} ${oddsNote}</div>
+    </div>`}
 
     <div class="card">
       <div class="pad" style="border-bottom:1px solid var(--line)">
@@ -3664,6 +3826,7 @@ async function exportXlsx(kind) {
       const st = positionStrength(r.players, lg);
       return {
         Team: r.name, W: r.wins, L: r.losses, PF: r.pf, PA: r.pa,
+        "Playoff odds": lg._odds && lg._odds.odds[r.id] != null ? Math.round(lg._odds.odds[r.id] * 1000) / 10 + "%" : "",
         [`Wk${S.meta.upcoming_week} proj`]: +teamTotal(r.players, lg).toFixed(1),
         [isDynasty(lg) ? "Dynasty value" : "ROS pts over replacement"]:
           Math.round(r.players.reduce((a, i) => a + (val(S.byId.get(i)) || 0), 0)),
@@ -5200,6 +5363,9 @@ async function boot() {
     if (ex && !ex.closest(".sheet")) { exportXlsx(ex.dataset.export); return; }
     const go = e.target.closest("[data-goto]");
     if (go) { show(go.dataset.goto); return; }
+    const lv = e.target.closest("[data-lview]");
+    if (lv) { try { localStorage.setItem("sacko.leagueView", lv.dataset.lview); } catch {}
+      renderLeague(); return; }
     const sw = e.target.closest("[data-league]");
     if (sw && !sw.closest(".sheet")) { switchLeague(sw.dataset.league); return; }
     const rl = e.target.closest("[data-relive]");
