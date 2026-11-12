@@ -408,7 +408,7 @@ swap('''    <div class="srcline">League: <b>${esc(S.league.platform)} · ${esc(S
       hasRosters(S.league) ? " — rosters verified against the player database"
         : " — standings only"}.</div>''',
 '''    <div class="srcline">League: <b>${esc(S.league.platform)} · ${esc(S.league.name)}</b>${
-      S.live ? " — pulled live from Sleeper just now"
+      S.live ? ` — pulled live from ${esc(S.league.platform)} just now`
         : hasRosters(S.league) ? " — snapshot taken when this file was built"
         : " — standings only"}.</div>
     <div class="srcline">${S.meta.built_by === "github-actions"

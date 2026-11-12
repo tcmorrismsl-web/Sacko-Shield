@@ -168,6 +168,8 @@ td.nm{white-space:normal; min-width:150px; font-weight:600}
 .pmeta{font-size:11.5px; color:var(--muted)}
 .pproj{font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:15px; text-align:right; font-variant-numeric:tabular-nums}
 
+.deal{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:6px}
+.deal .move{border:0;background:none;padding:0}
 .move{display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:center; padding:11px 13px; border:1px solid var(--warn); background:var(--warn-soft); border-radius:8px}
 .move .arrow{font-size:16px; color:var(--warn); font-weight:700}
 
@@ -753,7 +755,11 @@ function weeksLeft(p) {
   const last = S.meta.last_week || 18;
   let n = Math.max(0, last - first + 1);
   if (p && p.bye && p.bye >= first && p.bye <= last) n -= 1;
-  return n;
+  // a reserve list is a four-game minimum; "Out" is this week
+  const curInj = S.meta.sources && S.meta.sources.injuries_week === S.meta.upcoming_week;
+  if (p && curInj && longOut(p)) n -= 4;
+  else if (p && curInj && p.inj === "Out") n -= 1;
+  return Math.max(0, n);
 }
 
 /* Rest-of-season consensus rank within a position. League-independent, so it
@@ -915,6 +921,8 @@ function pj(p) {
   }
 
   if (p.pstats && sc) {
+    // Sleeper not projecting him at all is not the same as projecting 0 points
+    if (p.opp && p.pos !== "DST" && !Object.keys(p.pstats).length) return null;
     const v = scoreLine(p.pstats, sc);
     if (v != null) return Math.round(v * 100) / 100;
   }
@@ -936,8 +944,18 @@ function pj(p) {
    was made — but only a projection feed's line is a projection. A model estimate
    keeps its ~ so the two are never read as the same thing. */
 const projExact = p => !!(p && scoringOf(S.league)
-  && ((p.pstats && p.pstats_src !== "model")
+  && ((p.pstats && Object.keys(p.pstats).length && p.pstats_src !== "model")
    || (p.pos === "DST" && p.dst_ctx)));
+
+/** Where a weekly number comes from, in words: the tooltip and the player sheet. */
+function projWhy(p, short) {
+  if (!p) return "";
+  if (!p.opp) return short ? "no game this week" : "No game this week";
+  if (projExact(p)) return short ? "from a projected stat line"
+    : "Computed from a projected stat line under this league's scoring";
+  if (p.pstats_src === "model") return short ? "model estimate" : "Model estimate, not a projection feed";
+  return short ? "not projected by Sleeper" : "Sleeper doesn't project him this week";
+}
 
 /** Season production, restated in this league's points. */
 function seasonPts(p) {
@@ -1016,13 +1034,16 @@ const parOf = p => {
 };
 
 /* ---------------------------------------------------------- lineup solving */
-function optimalLineup(ids, lg) {
-  const slots = startingSlots(lg);
+function optimalLineup(ids, lg, score, slotsOverride) {
+  const slots = slotsOverride || startingSlots(lg);
   // "Out" only benches a player when the injury report is this week's;
   // an older report stays a flag
   const curInj = S.meta.sources && S.meta.sources.injuries_week === S.meta.upcoming_week;
+  const weekly = !score;
+  const pj = score || (p => !p || !p.opp || (curInj && p.inj === "Out") ? 0 : (window_pj(p) ?? 0));
+  const off = inactiveIds(lg);
   const pool = ids.map(i => S.byId.get(i)).filter(Boolean)
-                  .filter(p => (pj(p) ?? 0) > 0 && !(curInj && p.inj === "Out"));
+                  .filter(p => (pj(p) ?? 0) > 0 && !(weekly && off.has(p.id)));
   // Most restrictive slot first, then a local-search pass to fix greedy misses.
   const order = slots.map((s, i) => ({ s, i, n: (SLOTS[s] || []).length || 99 }))
                      .sort((a, b) => a.n - b.n);
@@ -1057,10 +1078,124 @@ function optimalLineup(ids, lg) {
   const total = out.reduce((a, p) => a + (pj(p) || 0), 0);
   // the bench is everyone not starting: bye weeks and zero projections included
   const bench = ids.map(i => S.byId.get(i)).filter(p => p && !used.has(p.id));
-  return { slots, lineup: out, total, bench };
+  return { slots, lineup: out, total, bench, weekly };
+}
+const window_pj = p => pj(p);
+
+/** Sleeper reserve (IR) and taxi players can't be started until activated. */
+function inactiveIds(lg) {
+  const out = new Set();
+  for (const r of (lg && lg.rosters) || [])
+    for (const id of [...(r.reserve || []), ...(r.taxi || [])]) out.add(String(id));
+  return out;
+}
+
+/** Has his game this week kicked off? Then he can't be moved in or out. */
+function started(p) {
+  const k = p && S.kick && S.kick[String(S.meta.upcoming_week)]
+    && S.kick[String(S.meta.upcoming_week)][p.team];
+  return !!(k && Date.now() >= Date.parse(k.kick));
+}
+
+/** The best lineup he can still set. Anyone whose game has started stays
+    where he is, in or out; the open slots are filled from who hasn't played. */
+function settableLineup(r, lg) {
+  const slots = startingSlots(lg);
+  const now = currentBySlot(r, slots);
+  const lockedIds = new Set(r.players.filter(i => started(S.byId.get(i))));
+  if (!now || !lockedIds.size) return { ...optimalLineup(r.players, lg), now, lockedIds };
+  const pinned = now.map(p => (p && started(p)) ? p : null);
+  const openIdx = slots.map((_, i) => i).filter(i => !pinned[i]);
+  const sub = optimalLineup(r.players.filter(i => !lockedIds.has(i)), lg, null, openIdx.map(i => slots[i]));
+  const lineup = pinned.slice();
+  openIdx.forEach((i, j) => { lineup[i] = sub.lineup[j]; });
+  const used = new Set(lineup.filter(Boolean).map(p => p.id));
+  const total = lineup.reduce((a, p) => a + (p && p.opp ? (pj(p) || 0) : 0), 0);
+  const bench = r.players.map(i => S.byId.get(i)).filter(p => p && !used.has(p.id));
+  return { slots, lineup, total, bench, weekly: true, now, lockedIds };
 }
 
 const teamTotal = (ids, lg) => optimalLineup(ids, lg).total;
+
+/* ---------------------------------------------------- lineup-impact engine
+   Every waiver add, every drop and every trade is judged by one question:
+   how many points does it put in his starting lineup? This week, from the
+   weekly projection, and for the rest of the season, from the consensus
+   rest-of-season rank priced in this league's scoring. A player who doesn't
+   change the lineup is worth nothing this year, however good he looks in a
+   table. */
+
+/** Is he unavailable for a stretch, not just this week? */
+const longOut = p => !!(p && (p.inj_long || /\bIR\b|PUP|NFI|Sus/i.test(p.inj_note || "")));
+
+/** Average of his last three games, in this league's points. */
+function recentPPG(p, n = 3) {
+  if (!p || !p.wstats || !p.logw || p.wstats.length !== p.logw.length) return null;
+  const sc = scoringOf(S.league) || DEFAULT_SCORING;
+  const recent = p.logw.map((w, i) => [w, p.wstats[i]])
+    .filter(([w]) => w >= (S.meta.upcoming_week || 1) - 4).slice(-n);
+  if (!recent.length) return null;
+  return recent.reduce((a, [, l]) => a + (scoreLine(l, sc) || 0), 0) / recent.length;
+}
+
+/** What he should average per week from here, as a lineup input. A player on
+    a reserve list contributes nothing to a rest-of-season lineup; one with no
+    consensus rank is read from his recent games rather than called zero. */
+function rosWeekly(p) {
+  if (!p || longOut(p)) return 0;
+  let v = rosRank(p) != null ? rosPPG(p) : null;
+  if (v == null) {
+    const r = recentPPG(p);
+    v = r != null ? r * 0.85 : (pj(p) ?? 0);
+  }
+  return Math.max(0, v || 0);
+}
+
+const rosTotal = (ids, lg) => optimalLineup(ids, lg, rosWeekly).total;
+
+/** One number for a roster: the rest of the season weighted over this week,
+    since a pickup that only helps for one game rarely beats one that helps for
+    six. Both parts are points per week. */
+function impactOf(ids, lg) {
+  return { wk: teamTotal(ids, lg), ros: rosTotal(ids, lg) };
+}
+const blend = d => 0.6 * d.ros + 0.4 * d.wk;
+const deltaOf = (a, b) => ({ wk: b.wk - a.wk, ros: b.ros - a.ros });
+
+/** The cheapest player to cut from `ids` (never `keep`): the one whose loss
+    costs the lineup least, now and over the rest of the season. In a dynasty
+    league long-term value counts too, so a young prospect isn't the first to go. */
+function bestDrop(ids, lg, keep, base) {
+  base = base || impactOf(ids, lg);
+  const dyn = isDynasty(lg);
+  let best = null;
+  const res = new Set((((lg.rosters || []).find(t => t.players === ids) || {}).reserve) || []);
+  for (const id of ids) {
+    if (id === keep) continue;
+    const p = S.byId.get(id);
+    if (!p) continue;
+    // a player in an IR slot doesn't hold a roster spot, so cutting him frees nothing
+    if (res.has(id) || longOut(p)) continue;
+    const after = impactOf(ids.filter(x => x !== id), lg);
+    const lineupCost = Math.max(0, blend(base) - blend(after));
+    const cost = lineupCost + (dyn ? Math.log10(1 + (val(p) || 0)) * 1.2 : 0);
+    if (!best || cost < best.cost - 1e-9
+        || (Math.abs(cost - best.cost) < 1e-9 && (rosWeekly(p) < rosWeekly(best.p))))
+      best = { p, cost, lineupCost, after };
+  }
+  return best;
+}
+
+/** Add `p`, cut the best drop: what that is worth to his lineup. Rosters are
+    full in-season, so an add always costs someone. */
+function addDrop(r, lg, p, base) {
+  base = base || impactOf(r.players, lg);
+  const withP = [...r.players, p.id];
+  const drop = bestDrop(withP, lg, p.id);
+  const ids = drop ? withP.filter(x => x !== drop.p.id) : withP;
+  const after = drop ? drop.after : impactOf(withP, lg);
+  return { drop: drop && drop.p, d: deltaOf(base, after) };
+}
 
 /* Put a set of starters into this league's slots. Sleeper hands its starters
    back slot by slot ("0" for an empty slot); ESPN hands back a plain list.
@@ -1103,7 +1238,12 @@ function seatPlayers(players, slots, prefer) {
 
 /** The current lineup, one entry per starting slot. */
 function currentBySlot(r, slots) {
-  const raw = r.starters || [];
+  // Only a lineup read for THIS week counts: the platform's matchup read (live
+  // in the browser for Sleeper and ESPN alike). A stored roster's starters can
+  // be weeks old, and advice measured against an old lineup is wrong advice.
+  const mu = S.league && S.league.matchups && S.league.matchups[String(S.meta.upcoming_week)];
+  const entry = mu && mu.by_roster && mu.by_roster[r.id];
+  const raw = (entry && Array.isArray(entry.starters) && entry.starters.length) ? entry.starters : [];
   if (!raw.length) return null;
   // Sleeper: already slot by slot, and every player fits his slot
   if (raw.length === slots.length) {
@@ -1121,23 +1261,43 @@ const slotTitle = s => (SLOTS[s] || []).length > 1
 /** Slot-by-slot changes from the current lineup to the best one. Every row
     is one slot: who is in it now and who should be. Nothing ever crosses
     positions except through a slot that accepts both. */
+const TOSS_UP = 1.0;   // a projected edge under a point is noise next to a ~6-point weekly spread
 function lineupChanges(r, lg, opt) {
   const slots = opt.slots;
-  const now = currentBySlot(r, slots);
+  const now = opt.now !== undefined ? opt.now : currentBySlot(r, slots);
   if (!now) return null;
-  // seat the best lineup so anyone already in a good slot stays put
+  const curInj = S.meta.sources && S.meta.sources.injuries_week === S.meta.upcoming_week;
+  const val1 = p => !p || !p.opp || (curInj && p.inj === "Out") ? 0 : (pj(p) || 0);
+  // seat the best lineup so anyone already in a good slot stays put; anyone
+  // whose game has started is pinned where he is
   const want = seatPlayers(opt.lineup, slots, now);
+  slots.forEach((s, i) => { if (now[i] && started(now[i])) {
+    const j = want.findIndex(p => p && p.id === now[i].id);
+    if (j >= 0 && j !== i) { want[j] = want[i]; }
+    want[i] = now[i];
+  } });
   const nowIdx = new Map(now.map((p, i) => [p && p.id, i]));
-  const rows = [];
+  const wantIds = new Set(want.filter(Boolean).map(p => p.id));
+  let rows = [];
+  const tossUps = [];
   slots.forEach((s, i) => {
     const a = now[i], b = want[i];
     if ((a && a.id) === (b && b.id)) return;
+    if ((a && started(a)) || (b && started(b))) return;          // can't be changed any more
+    if (!b) { want[i] = a; return; }   // benching someone for nobody gains nothing
     const from = b && nowIdx.has(b.id) ? slots[nowIdx.get(b.id)] : null;   // a slide, not a bench move
+    // a straight bench-for-starter swap worth under a point is a coin flip:
+    // say so instead of presenting it as a change
+    if (a && b && !from && !wantIds.has(a.id) && val1(a) > 0 && val1(b) - val1(a) < TOSS_UP) {
+      tossUps.push({ slot: s, out: a, inn: b });
+      want[i] = a;
+      return;
+    }
     rows.push({ slot: s, out: a, inn: b, from });
   });
-  const curInj = S.meta.sources && S.meta.sources.injuries_week === S.meta.upcoming_week;
-  const nowTotal = now.reduce((t, p) => t + (p && curInj && p.inj === "Out" ? 0 : (pj(p) || 0)), 0);
-  return { rows, now, want, gain: opt.total - nowTotal };
+  const nowTotal = now.reduce((t, p) => t + val1(p), 0);
+  const wantTotal = want.reduce((t, p) => t + val1(p), 0);
+  return { rows, tossUps, now, want, gain: wantTotal - nowTotal };
 }
 
 
@@ -1146,6 +1306,7 @@ function lineupChanges(r, lg, opt) {
    formula scores every one of them near zero. Stream value is a different
    question — how good is this week, and is he gettable — so it gets its own. */
 function dstScore(p) {
+  if (!p.opp) return 0;                     // on bye: nothing to stream
   const par = parOf(p);
   const v = par != null ? Math.min(1, Math.max(0, (par + 3) / 7)) : 0.3;
   const form = seasonPPG(p) != null ? Math.min(1, Math.max(0, seasonPPG(p) / 14)) : 0.3;
@@ -1167,15 +1328,23 @@ function waiverScore(p) {
                  ? Math.min(1, Math.max(0, 0.5 + (p.snap_last - p.snap) / 40)) : 0.5;
   const usage  = p.tgt_share != null ? Math.min(1, p.tgt_share / 25)
                : (p.car ? Math.min(1, p.car / (p.g || 1) / 16) : 0.2);
-  const prod   = seasonPPG(p) != null ? Math.min(1, seasonPPG(p) / 16) : 0.15;
+  // what he has done lately counts for more than the season line
+  const r3 = recentPPG(p), season = seasonPPG(p);
+  const form = r3 != null ? r3 : season;
+  const prod   = form != null ? Math.min(1, form / 16) : 0.15;
   const scarce = p.own != null ? Math.max(0, 1 - p.own / 70) : 0.6;  // still gettable
-  const dyn    = val(p) ? Math.min(1, val(p) / valueScale()) : 0;
-  const s = 0.30*par + 0.14*snap + 0.12*trend + 0.13*usage
-          + 0.11*prod + 0.10*scarce + 0.10*dyn;
+  const dyn    = isDynasty(S.league) && val(p)
+    ? Math.min(1, Math.log10(1 + val(p)) / Math.log10(1 + valueScale())) : 0;
+  const s = 0.26*par + 0.13*snap + 0.12*trend + 0.13*usage
+          + 0.16*prod + 0.10*scarce + 0.10*dyn;
   // Someone who can't play this week isn't a waiver priority, however good he
   // is — in a dynasty league he's a stash, which is what the low score says.
-  const avail = !p.opp ? 0.55 : p.inj === "Out" ? 0.6 : p.inj === "Doubtful" ? 0.75 : 1;
-  return Math.round(s * 100 * avail);
+  const dnp = p.inj_note && /DNP/.test(p.inj_note);
+  const avail = longOut(p) ? 0.45 : !p.opp ? 0.55 : p.inj === "Out" ? 0.6
+    : p.inj === "Doubtful" ? 0.75 : p.inj === "Questionable" ? (dnp ? 0.8 : 0.9) : 1;
+  // a 30-year-old waiver add is a one-season rental in a dynasty league
+  const age = isDynasty(S.league) && (p.age || 0) >= 30 ? 0.7 : 1;
+  return Math.round(s * 100 * avail * age);
 }
 /** Enough signal to be worth a row at all. */
 const waiverWorthy = p =>
@@ -1184,6 +1353,8 @@ const waiverWorthy = p =>
   (pj(p) ?? 0) > 1 || (seasonPPG(p) ?? 0) > 2 || (p.snap_last ?? 0) > 20 || (val(p) ?? 0) > valueScale() / 10;
 
 const faabPct = (s, p) => {
+  // streamers are a week's rental: never a real bid
+  if (p.pos === "K" || p.pos === "DST") return "$0–1";
   const bid = s >= 78 ? "25–40%" : s >= 66 ? "12–22%" : s >= 54 ? "5–10%"
             : s >= 42 ? "2–4%" : s >= 30 ? "1–2%" : "$0–1 / last claim";
   // Don't recommend a real bid on someone below the startable line.
@@ -1230,15 +1401,25 @@ function positionStrength(ids, lg) {
   return out;
 }
 
+/* Needs are judged by what each roster puts in its starting lineup at a
+   position over the rest of the season, ranked against the other rosters in
+   this league. A tight end room full of dynasty value but starting a 6-point
+   player is a need; a position held by one stud and no depth is not. */
+function posLineupPts(ids, lg) {
+  const { lineup } = optimalLineup(ids, lg, rosWeekly);
+  const out = {};
+  for (const p of lineup) if (p) out[p.pos] = (out[p.pos] || 0) + rosWeekly(p);
+  return out;
+}
 function rosterNeeds(ids, lg) {
-  const st = positionStrength(ids, lg);
-  const league = S.league.rosters.map(r => positionStrength(r.players, lg));
+  const mine = posLineupPts(ids, lg);
+  const league = S.league.rosters.map(r => posLineupPts(r.players, lg));
   const needs = {};
   for (const pos of gradedPositions(lg)) {
-    const all = league.map(x => x[pos].top).sort((a, b) => a - b);
-    const mine = st[pos].top;
-    const pct = all.length ? all.filter(v => v < mine).length / all.length : 0.5;
-    needs[pos] = { pct, label: pct < 0.25 ? "need" : pct < 0.5 ? "thin"
+    const all = league.map(x => x[pos] || 0);
+    const m = mine[pos] || 0;
+    const pct = all.length ? all.filter(v => v < m - 0.05).length / Math.max(1, all.length - 1) : 0.5;
+    needs[pos] = { pct, pts: m, label: pct < 0.25 ? "need" : pct < 0.5 ? "thin"
                           : pct < 0.78 ? "solid" : "strength" };
   }
   return needs;
@@ -1306,6 +1487,7 @@ async function trySleeper(leagueId) {
       id: String(r.roster_id), name: uname[r.owner_id] || ("Roster " + r.roster_id),
       owner: uname[r.owner_id] || "", players: r.players || [],
       starters: r.starters || [], picks: [],
+      reserve: r.reserve || [], taxi: r.taxi || [],
       wins: r.settings?.wins || 0, losses: r.settings?.losses || 0,
       pf: (r.settings?.fpts || 0) + (r.settings?.fpts_decimal || 0) / 100,
       pa: (r.settings?.fpts_against || 0) + (r.settings?.fpts_against_decimal || 0) / 100,
@@ -1809,7 +1991,8 @@ function sigmaFor(p, mean) {
 function sideState(starters) {
   return starters.map(id => S.byId.get(id)).filter(Boolean).map(p => {
     const g = gameState(p);
-    const proj = pj(p) || 0;
+    const curInj = S.meta.sources && S.meta.sources.injuries_week === S.meta.upcoming_week;
+    const proj = (curInj && p.inj === "Out") ? 0 : (pj(p) || 0);
     const got = banked(p);
     const remainMean = g.phase === "final" ? 0 : proj * g.left;
     return {
@@ -2020,9 +2203,12 @@ function renderMatchup() {
      rendering an empty team. */
   const best = r => (r && r.players && r.players.length)
     ? optimalLineup(r.players, lg).lineup.filter(Boolean).map(p => p.id) : [];
-  const listed = (entry, roster) =>
-    (entry && Array.isArray(entry.starters) && entry.starters.length)
-      ? entry.starters : best(roster);
+  const assumed = [];
+  const listed = (entry, roster) => {
+    if (entry && Array.isArray(entry.starters) && entry.starters.length) return entry.starters;
+    if (roster) assumed.push(roster.id === meRoster.id ? "your" : "their");
+    return best(roster);
+  };
 
   const myStarters = listed(paired ? mu.by_roster[meRoster.id] : null, meRoster);
   const oppEntry = paired && oppId ? mu.by_roster[oppId] : null;
@@ -2112,6 +2298,10 @@ function renderMatchup() {
         </div>
       </div>
       ${liveStatus()}
+      ${assumed.length ? `<div class="sub"><span class="chip warn">assumed</span>
+        ${assumed.length === 2 ? "Neither lineup" : assumed[0] === "your" ? "Your lineup" : "Their lineup"}
+        hasn't loaded from ${esc(lg.platform)}, so ${assumed.length === 2 ? "both sides are" : "that side is"}
+        shown starting the best lineup ${assumed.length === 2 ? "they" : "it"} can field.</div>` : ""}
       ${unmatched ? `<div class="sub"><span class="chip warn">note</span>
         ${fmt(unmatched)} of your points come from a starter this app doesn't
         recognise, so the rows below won't add up to the score above.</div>` : ""}
@@ -2229,10 +2419,13 @@ function renderWeek() {
   const lg = S.league, wk = S.meta.upcoming_week;
   if (!hasRosters(lg)) { $("#p-week").innerHTML = noRosters("Start/sit"); return; }
   const r = me();
-  const { slots, lineup, total, bench } = optimalLineup(r.players, lg);
+  const set = settableLineup(r, lg);
+  const { slots, total, bench } = set;
 
   // What the platform currently has starting, slot by slot, when we know it.
-  const ch = lineupChanges(r, lg, { slots, lineup, total });
+  const ch = lineupChanges(r, lg, set);
+  // show the lineup we recommend: the optimal one, with toss-ups left as he has them
+  const lineup = ch ? ch.want : set.lineup;
   const sf = slots.includes("SUPER_FLEX");
   const flag = lineup.filter(p => p && (p.inj || !p.opp));
   // Only flag consensus disagreement while the weekly rankings cover this week.
@@ -2278,7 +2471,17 @@ function renderWeek() {
           : `<div class="pmeta">no eligible ${esc(slotTitle(m.slot))} with a game — check waivers</div>`}</div>
       </div>`).join("")}
     </div>` : ch ? `<div class="card pad"><span class="chip good">✓ Optimal</span>
-      <span class="sub"> Your current lineup already maximises projected points.</span></div>` : ""}
+      <span class="sub"> Your ${esc(lg.platform)} lineup already maximises projected points${
+        set.lockedIds.size ? " among the players who haven't played yet" : ""}.</span></div>`
+      : `<div class="card pad"><span class="sub">Your current Week ${wk} lineup hasn't loaded from
+        ${esc(lg.platform)}, so this shows the best lineup to set rather than changes to make.
+        Compare it with ${esc(lg.platform)}.</span></div>`}
+    ${ch && ch.tossUps.length ? `<div class="card pad stack">
+      <span class="eyebrow">Toss-ups — your call</span>
+      ${ch.tossUps.map(t => `<div class="note"><b>${esc(slotTitle(t.slot))}:</b> ${esc(t.out.name)}
+        (${fmt(pj(t.out))}) vs ${esc(t.inn.name)} (${fmt(pj(t.inn))}). Under a point apart, well
+        inside the normal week-to-week swing, so the app leaves who you have.</div>`).join("")}
+    </div>` : ""}
 
     <div class="card">
       <div class="pad" style="border-bottom:1px solid var(--line)">
@@ -2319,16 +2522,13 @@ function slotRow(slot, p, bench) {
   }">${esc(p.wk_grade)}</span>` : "";
   return `<div class="slot ${bench ? "bench" : ""}" data-player="${esc(p.id)}" tabindex="0">
     <div class="slot-lbl">${esc(slot === "SUPER_FLEX" ? "SFLX" : slot === "DEF" ? "D/ST" : slot)}</div>
-    <div><div class="pname">${nameCell(p)}${badge}</div>
+    <div><div class="pname">${nameCell(p)}${badge}${started(p)
+      ? ` <span class="chip" title="His game has kicked off, so he can't be moved">locked</span>` : ""}</div>
       <div class="pmeta mono">${esc(p.team)} ${oppTxt(p)}${
         seasonPPG(p) != null ? ` · ${fmt(seasonPPG(p))} ppg` : ""}${
         (wkFresh && p.wk_pos_rank) ? ` · FP ${esc(p.wk_pos_rank)}` : ""}</div></div>
-    <div class="pproj" title="${projExact(p)
-      ? "Computed from a projected stat line under this league's scoring"
-      : p.pstats
-        ? "Sacko Shield model estimate — its stat line is this league's scoring applied to his own per-game rates, not a projection feed"
-        : "Sacko Shield model estimate — no stat line for this player"}">${fmt(pj(p))}${
-      projExact(p) ? "" : `<span class="est" aria-label="model estimate">~</span>`}</div>
+    <div class="pproj" title="${esc(projWhy(p))}">${fmt(pj(p))}${
+      p.pstats_src === "model" ? `<span class="est" aria-label="model estimate">~</span>` : ""}</div>
   </div>`;
 }
 
@@ -2375,20 +2575,64 @@ function renderWaiver() {
   if (f.needs) pool = pool.filter(p => ["need", "thin"].includes((needs[p.pos] || {}).label));
   if (f.minProj) pool = pool.filter(p => (pj(p) ?? 0) >= f.minProj);
 
-  const poolTotal = pool.length;
-  const fa = sortBy(pool.map(p => ({ ...p, ws: waiverScore(p) })), f.sort, f.dir,
+  // Score everyone, then measure the best ~60 against his actual lineup: the
+  // add, the player he'd cut for it, and what the swap is worth per week now
+  // and over the rest of the season.
+  const base = impactOf(r.players, lg);
+  const verify = p => lg.espn_derived && (p.own ?? 0) >= 60;
+  const scored = pool.map(p => {
+    let ws = waiverScore(p);
+    if (verify(p)) ws = Math.round(ws * 0.7);
+    return { p, ws };
+  }).sort((a, b) => b.ws - a.ws);
+  const mineSet = new Set(r.players);
+  const impact = new Map();
+  for (const { p } of scored.slice(0, 60)) {
+    if (mineSet.has(p.id)) continue;
+    impact.set(p.id, addDrop(r, lg, p, base));
+  }
+  const rows = scored.map(({ p, ws }) => {
+    const im = impact.get(p.id);
+    const gain = im ? blend(im.d) : null;
+    // a kicker or defense that doesn't beat the one he has is not a move
+    const stream = p.pos === "K" || p.pos === "DST";
+    if (stream && im && f.avail === "fa" && im.d.wk < 1) return null;
+    const score = im ? Math.round(0.6 * ws + 40 * Math.min(1, Math.max(0, gain / 4)))
+                     : Math.round(0.6 * ws);
+    return { ...p, ws: score, im, gain };
+  }).filter(Boolean);
+  const poolTotal = rows.length;
+  const fa = sortBy(rows, f.sort, f.dir,
     (p, k) => k === "ws" ? p.ws : k === "proj" ? pj(p) : k === "par" ? parOf(p)
+      : k === "gwk" ? (p.im ? p.im.d.wk : -99) : k === "gros" ? (p.im ? p.im.d.ros : -99)
       : k === "poe" ? poeOf(p, true) : k === "name" ? p.name : p[k]).slice(0, 80);
 
-  // droppable: your worst assets by dynasty value that aren't starting
-  const { lineup } = optimalLineup(r.players, lg);
-  const starting = new Set(lineup.filter(Boolean).map(p => p.id));
-  const drops = r.players.map(i => S.byId.get(i)).filter(Boolean)
-    .filter(p => !starting.has(p.id))
-    .sort((a, b) => (val(a) || 0) - (val(b) || 0)).slice(0, 5);
+  // the moves worth making: positive for the lineup, best first
+  const moves = rows.filter(x => x.im && x.im.drop && x.gain > 0.3 && !mineSet.has(x.id))
+    .sort((a, b) => b.gain - a.gain).slice(0, 5);
+  const sign = v => (v >= 0.05 ? "+" : v <= -0.05 ? "−" : "±") + fmt(Math.abs(v));
 
   $("#p-waiver").innerHTML = `
     ${rosterSourceBanner()}
+    <div class="card pad stack">
+      <div><span class="eyebrow">${esc(r.name)} · Week ${S.meta.upcoming_week}</span>
+        <div class="h-sec">${moves.length ? "Best waiver moves" : "No waiver move improves your lineup"}</div></div>
+      ${moves.map(x => `<div class="move" data-player="${esc(x.id)}" tabindex="0">
+        <div><div class="pmeta">add</div><div class="pname">${nameCell(x)}</div>
+          <div class="pmeta mono">${esc(x.team)} ${oppTxt(x)}${
+            recentPPG(x) != null ? ` · ${fmt(recentPPG(x))} last 3` : ""}${
+            verify(x) ? ` · <span class="chip warn">verify he's free</span>` : ""}</div></div>
+        <div class="arrow">⇄</div>
+        <div><div class="pmeta">drop</div><div class="pname">${nameCell(x.im.drop)}</div>
+          <div class="pmeta mono">${sign(x.im.d.wk)} this week · ${sign(x.im.d.ros)}/wk rest of season</div></div>
+      </div>`).join("")}
+      <div class="sub">${moves.length
+        ? "Each move is judged by your starting lineup after the swap: this week's projection, and the rest-of-season consensus priced in this league's scoring. The drop is whoever your lineup misses least."
+        : "Nobody available would start for you over who you have, this week or over the rest of the season. The table below still ranks the best stashes."}${
+        isDynasty(lg) ? " In this dynasty league, long-term value also protects young players from being the drop." : ""}
+        Players on IR aren't offered as drops: in an IR slot they don't use a roster spot. If one of yours is on your bench instead, he's the easy cut.</div>
+    </div>
+
     <div class="card pad stack">
       <div><span class="eyebrow">${esc(r.name)}</span>
         <div class="h-sec">Where your roster actually needs help</div></div>
@@ -2406,10 +2650,9 @@ function renderWaiver() {
           </div>`;
         }).join("")}
       </div>
-      <div class="sub">Percentile against the other ${lg.teams - 1} rosters, on your top
-        ${gradedPositions(lg).map(p => `${p} ${POS_DEPTH[p] || 1}`).join(" / ")} at each spot.
-        Kickers and defenses are graded on what they project to score, not on
-        dynasty value — nobody holds those.</div>
+      <div class="sub">Where your starters at each position rank against the other
+        ${lg.teams - 1} rosters, on what they project to score per week for the rest of
+        the season in this league's scoring.</div>
     </div>
 
     <div class="card">
@@ -2439,13 +2682,16 @@ function renderWaiver() {
         })}
       </div>
       <div class="pad sub" style="padding-top:0">
-        “vs repl” is projected points above the last startable player at that
+        “+Wk” and “+ROS” are what your starting lineup gains per week by adding him
+        and dropping the player named under him (this week, and on average over
+        the rest of the season). Score blends that with role, recent form and how
+        gettable he is. “vs repl” is projected points above the last startable player at that
         position in a ${lg.teams}-team league
         (${["QB","RB","WR","TE"].map(x => `${x} ${fmt(replacement()[x])}`).join(" · ")}).
         It is the only fair way to line a tight end up against a receiver.
       </div>
       <div class="tw"><table id="waiverTable"><thead><tr>
-        ${[["name","Player","t"],["ws","Score","n"],[null,"FAAB","t"],
+        ${[["name","Player","t"],["ws","Score","n"],["gwk","+Wk","n"],["gros","+ROS","n"],[null,"FAAB","t"],
            ["proj","Wk " + S.meta.upcoming_week,"n"],["par","vs repl","n"],
            ["own","Own%","n"],["snap_last","Snap→","n"],["ppg","PPG","n"],
            ["poe","POE/g","n"],["tgt_share","Tgt%","n"],[null,"Fits","t"]].map(([k,l,t]) =>
@@ -2456,8 +2702,12 @@ function renderWaiver() {
       ${fa.map(p => {
         const fit = needs[p.pos];
         return `<tr data-player="${esc(p.id)}" tabindex="0">
-          <td class="nm">${nameCell(p)}<div class="pmeta mono">${esc(p.team)} ${oppTxt(p)}</div></td>
+          <td class="nm">${nameCell(p)}<div class="pmeta mono">${esc(p.team)} ${oppTxt(p)}${
+            p.im && p.im.drop ? ` · drop ${esc(p.im.drop.name)}` : ""}${
+            verify(p) ? ` · <span class="chip warn">verify</span>` : ""}</div></td>
           <td class="n"><b>${p.ws}</b></td>
+          <td class="n" style="color:${p.im && p.im.d.wk > 0.05 ? "var(--good)" : "var(--muted)"}">${p.im ? sign(p.im.d.wk) : "—"}</td>
+          <td class="n" style="color:${p.im && p.im.d.ros > 0.05 ? "var(--good)" : "var(--muted)"}">${p.im ? sign(p.im.d.ros) : "—"}</td>
           <td>${esc(faabPct(p.ws, p))}</td>
           <td class="n">${fmt(pj(p))}</td>
           <td class="n" style="color:${(parOf(p) ?? 0) > 0 ? "var(--good)" : "var(--muted)"}">${
@@ -2482,22 +2732,6 @@ function renderWaiver() {
         <button class="btn ghost sm" data-fclear="waiver">Clear them</button></div>`}
     </div>
 
-    <div class="card pad stack">
-      <div><span class="eyebrow">Roster space</span>
-        <div class="h-sec">Cheapest players to move on from</div></div>
-      ${drops.map(p => `<div class="row" style="justify-content:space-between">
-        <div class="pname">${nameCell(p)}</div>
-        <div class="row" style="gap:10px"><span class="sub mono">${
-          val(p) ? fmt(val(p), 0) + " " + valueShort() : "no value"}</span>
-        <span class="sub mono">${seasonPPG(p) != null ? fmt(seasonPPG(p)) + " ppg" : ""}</span></div>
-      </div>`).join("")}
-      <div class="sub">Lowest ${valueLabel()} among players not in your optimal
-        lineup.${isDynasty(S.league)
-          ? " In a dynasty league, check the age column before dropping anyone young."
-          : " Nothing here is priced on future seasons — this is a " +
-            esc(S.league.type) + " league."}</div>
-    </div>
-
     ${sourceCard()}`;
 
   wireFilters("waiver", renderWaiver);
@@ -2518,7 +2752,45 @@ function renderTrade() {
     : [(diff > 0 ? "you lose value" : "you win value"),
         `${Math.round(pct * 100)}% gap — that is a real difference, not a rounding error.`];
 
+  const deals = findDeals(lg, r);
+  const sg = v => (v >= 0.05 ? "+" : v <= -0.05 ? "−" : "±") + fmt(Math.abs(v));
+  const names = ps => ps.map(p => `${nameCell(p)}`).join(" + ");
+  // what the deal in the calculator does to his lineup, when every player in
+  // it is a real player (picks aren't in a lineup)
+  const ids = side => S.trade[side].map(x => x.id).filter(Boolean);
+  const lineupNote = (() => {
+    const give = ids("a"), get = ids("b");
+    if (!give.length && !get.length) return "";
+    if (give.length !== S.trade.a.filter(x => x.pos).length || get.length !== S.trade.b.filter(x => x.pos).length) return "";
+    const d = deltaOf(impactOf(r.players, lg),
+      impactOf([...r.players.filter(i => !give.includes(i)), ...get], lg));
+    const good = blend(d) > 0.3, bad = blend(d) < -0.3;
+    return `<div class="note"><b>Your lineup:</b> ${sg(d.wk)} this week, ${sg(d.ros)} per week
+      over the rest of the season${bad ? " — this deal makes your starting lineup worse." : good ? "." : " — no real change to who starts."}</div>`;
+  })();
+
   $("#p-trade").innerHTML = `
+    <div class="card pad stack">
+      <div><span class="eyebrow">${esc(r.name)} · ${isDynasty(lg) ? (sf ? "superflex" : "1QB") + " dynasty values" : "rest-of-season points"}</span>
+        <div class="h-sec">${deals.length ? "Trades worth proposing" : "No fair trade found that helps both sides"}</div></div>
+      ${deals.map((d, i) => `<div class="deal">
+        <div class="row" style="justify-content:space-between; gap:8px; flex-wrap:wrap">
+          <span class="eyebrow">with ${esc(d.team.name)}</span>
+          <button class="btn ghost sm" data-deal="${i}">Load in calculator</button></div>
+        <div class="move">
+          <div><div class="pmeta">you send</div><div class="pname">${names(d.give)}</div></div>
+          <div class="arrow">⇄</div>
+          <div><div class="pmeta">you get</div><div class="pname">${names(d.get)}</div></div>
+        </div>
+        <div class="pmeta mono">Your lineup ${sg(d.dMe.wk)} this week, ${sg(d.dMe.ros)}/wk rest of season ·
+          theirs ${sg(d.dThem.ros)}/wk · value ${fmt(d.gv, 0)} out, ${fmt(d.wv, 0)} in</div>
+      </div>`).join("")}
+      <div class="sub">Every deal here is within 15% on ${esc(valueLabel())}, makes your
+        starting lineup better, and makes theirs better too, so it's one they have a reason
+        to accept. Injured players on reserve lists aren't targeted.${deals.length ? "" :
+        " Try the calculator below for deals involving picks or more than two players."}</div>
+    </div>
+
     <div class="card pad stack">
       <div class="row" style="justify-content:space-between">
         <div><span class="eyebrow">${esc(lg.type)} · ${
@@ -2532,8 +2804,7 @@ function renderTrade() {
           ${(a || b) ? `<button class="btn ghost sm" id="tradeClear">Clear</button>` : ""}
         </div>
       </div>
-      ${S.tradeSeeded ? `<div class="sub">An example deal to show the tool working —
-        clear it and build your own.</div>` : ""}
+
       <div class="grid g2">
         <div><div class="eyebrow" style="margin-bottom:6px">You send</div>
           <div class="trade-side" id="sideA">${sideHTML("a")}</div>
@@ -2564,6 +2835,7 @@ function renderTrade() {
             diff > 0 ? "−" : "+"}${fmt(Math.abs(diff), 0)}</span>
         </div>
         <div>${esc(verdict[1])}</div>
+        ${lineupNote}
         ${tradeFitNotes(needs)}
       </div>` : `<div class="empty">Add players to either side to price the deal.</div>`}
     </div>
@@ -2608,24 +2880,87 @@ function renderTrade() {
   $("#tradeClear")?.addEventListener("click", () => {
     S.trade = { a: [], b: [] }; S.tradeSeeded = false; renderTrade();
   });
+  $$("[data-deal]").forEach(b => b.addEventListener("click", () => {
+    const d = deals[+b.dataset.deal];
+    const item = p => ({ id: p.id, name: p.name, pos: p.pos, v: val(p) || 0 });
+    S.trade = { a: d.give.map(item), b: d.get.map(item) };
+    renderTrade();
+    $("#sideA")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }));
 }
 
 /** Open the calculator on a plausible deal rather than two empty boxes. */
 function seedTrade() {
-  if (S.trade.a.length || S.trade.b.length) return;
-  const mine = me().players.map(i => S.byId.get(i)).filter(p => p && val(p))
-                 .sort((x, y) => val(y) - val(x));
-  if (mine.length < 3) return;
-  const out = mine[1];                       // your second-best asset
-  const held = new Set(me().players);
-  const want = val(out) * 0.85;
-  const target = S.players
-    .filter(p => val(p) && !held.has(p.id) && p.pos !== out.pos)
-    .sort((x, y) => Math.abs(val(x) - want) - Math.abs(val(y) - want))[0];
-  if (!target) return;
-  S.trade.a = [{ name: out.name, pos: out.pos, v: val(out) }];
-  S.trade.b = [{ name: target.name, pos: target.pos, v: val(target) }];
-  S.tradeSeeded = true;
+  // The calculator opens empty. It used to open on a made-up example that, in
+  // three of four leagues, made his lineup worse; the deal finder above it is
+  // where suggestions come from now.
+  S.tradeSeeded = false;
+}
+
+/* Deal finder. For every other team, every one-for-one swap of a player of
+   his for one of theirs at a different position, kept only when it is close
+   in value on this league's basis (dynasty value in dynasty, rest-of-season
+   points over replacement in redraft), lifts HIS lineup, and also lifts
+   THEIRS — a trade the other manager gains nothing from won't be accepted.
+   Then two-for-one consolidations: two of his for one better player of theirs. */
+let _dealCache = null;
+function findDeals(lg, r) {
+  const key = lg.key + "|" + r.id + "|" + S.meta.upcoming_week + "|" + (S.ov && S.ov.generated_at)
+    + "|" + lg.rosters.map(t => t.players.length).join(",");
+  if (_dealCache && _dealCache.key === key) return _dealCache.deals;
+  const dyn = isDynasty(lg);
+  const tv = p => dyn ? (val(p) || 0) : Math.max(0, (rosWeekly(p) - (replacement()[p.pos] ?? 0)) * weeksLeft(p));
+  const tradeable = p => p && p.pos !== "K" && p.pos !== "DST";
+  const healthy = p => !longOut(p);
+  const mine = r.players.map(i => S.byId.get(i)).filter(tradeable);
+  const myBase = impactOf(r.players, lg);
+  const deals = [];
+  for (const t of lg.rosters) {
+    if (t.id === r.id) continue;
+    const theirs = t.players.map(i => S.byId.get(i)).filter(p => tradeable(p) && healthy(p));
+    const theirBase = impactOf(t.players, lg);
+    const evalDeal = (give, get) => {
+      const gv = give.reduce((a, p) => a + tv(p), 0), wv = get.reduce((a, p) => a + tv(p), 0);
+      const hi = Math.max(gv, wv);
+      if (hi <= 0 || Math.abs(gv - wv) / hi > 0.15) return null;
+      const gIds = new Set(give.map(p => p.id)), wIds = new Set(get.map(p => p.id));
+      const meAfter = impactOf([...r.players.filter(i => !gIds.has(i)), ...wIds], lg);
+      const dMe = deltaOf(myBase, meAfter);
+      if (blend(dMe) < 1) return null;
+      const themAfter = impactOf([...t.players.filter(i => !wIds.has(i)), ...gIds], lg);
+      const dThem = deltaOf(theirBase, themAfter);
+      if (blend(dThem) < 0.3) return null;
+      return { team: t, give, get, dMe, dThem, gv, wv,
+               score: Math.min(blend(dMe), 2 * blend(dThem)) };
+    };
+    for (const g of mine) for (const w of theirs) {
+      if (g.pos === w.pos) continue;
+      const d = evalDeal([g], [w]);
+      if (d) deals.push(d);
+    }
+    // two-for-one: only for a clearly better player, and only from his bench
+    // and fringe starters, so it stays a consolidation and not a fire sale
+    const top = theirs.filter(w => tv(w) > 0).sort((a, b) => tv(b) - tv(a)).slice(0, 4);
+    const pairsFrom = mine.filter(g => tv(g) > 0).sort((a, b) => tv(b) - tv(a)).slice(1, 9);
+    for (const w of top) for (let i = 0; i < pairsFrom.length; i++) for (let j = i + 1; j < pairsFrom.length; j++) {
+      const a = pairsFrom[i], b = pairsFrom[j];
+      if (tv(a) >= tv(w) || tv(b) >= tv(w)) continue;
+      const d = evalDeal([a, b], [w]);
+      if (d) deals.push(d);
+    }
+  }
+  deals.sort((x, y) => y.score - x.score);
+  // no more than two deals per player he sends, so one name doesn't fill the list
+  const seen = new Map(), out = [];
+  for (const d of deals) {
+    const k = d.give.map(p => p.id).join("+");
+    if ((seen.get(k) || 0) >= 2) continue;
+    seen.set(k, (seen.get(k) || 0) + 1);
+    out.push(d);
+    if (out.length >= 8) break;
+  }
+  _dealCache = { key, deals: out };
+  return out;
 }
 
 function sideHTML(side) {
@@ -2644,9 +2979,9 @@ function tradeSearch(side, q) {
   if (q.length < 2) { box.innerHTML = ""; return; }
   const sf = isSuperflex(S.league);
   const hits = [
-    ...S.players.filter(p => val(p) && p.name.toLowerCase().includes(q))
-      .sort((x, y) => val(y) - val(x)).slice(0, 6)
-      .map(p => ({ name: p.name, pos: p.pos, v: val(p) })),
+    ...S.players.filter(p => (val(p) || !isDynasty(S.league)) && p.name.toLowerCase().includes(q))
+      .sort((x, y) => (val(y) || 0) - (val(x) || 0) || (rosWeekly(y) - rosWeekly(x))).slice(0, 6)
+      .map(p => ({ id: p.id, name: p.name, pos: p.pos, v: val(p) || 0 })),
     ...(isDynasty(S.league)
       ? S.picks.filter(p => p.pick.toLowerCase().includes(q)).slice(0, 4)
           .map(p => ({ name: p.pick, pos: null, v: sf ? p.v_sf : p.v_1qb }))
@@ -3393,7 +3728,7 @@ function openPlayer(id) {
 
     <div class="tilerow">
       ${tile("Week " + S.meta.upcoming_week, fmt(pj(p)),
-        projExact(p) ? "from a projected stat line" : "model estimate")}
+        projWhy(p, true))}
       ${tile("Per game", fmt(seasonPPG(p)), `${p.g || 0} game${p.g === 1 ? "" : "s"}`)}
       ${tile("Over replacement", (parOf(p) ?? 0) > 0 ? "+" + fmt(parOf(p)) : fmt(parOf(p)),
         "vs a startable " + p.pos)}
@@ -3958,6 +4293,8 @@ async function pollLive() {
       if (!had || JSON.stringify(had.pairs) !== JSON.stringify(out.matchups.pairs)) {
         try { saveConnected(lg); } catch {}
       }
+      const lineupMoved = !had || JSON.stringify(had.by_roster) !== JSON.stringify(out.matchups.by_roster);
+      if (lineupMoved && S.league === lg && S.tab === "week") renderWeek();
     }
     S.directPts = out.scored ? out.pts : null;
     S.directTotals = out.scored ? rosterTotals(out.matchups) : null;

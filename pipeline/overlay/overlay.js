@@ -91,8 +91,10 @@ function applyOverlay(ov) {
 
     // projection: Sleeper's current stat line
     const fresh = ov.proj[p.id];
-    if (fresh && fresh.s) {
+    if (fresh && fresh.s && g) {
       p.pstats = fresh.s; p.pstats_src = "sleeper"; p.proj_src = "sleeper";
+    } else if (!g && p.pos !== "DST") {
+      p.pstats = {};                         // no game this week, whatever a feed says
     } else if (okPos.has(p.pos) && g && p._base.pstats_src === "sleeper") {
       // Sleeper projected him before and projects nothing now
       p.pstats = {}; p.pstats_src = "sleeper"; p.proj_src = "sleeper";
@@ -119,10 +121,12 @@ function applyOverlay(ov) {
 
     // injury designation and practice participation
     const st = (ov.status || {})[p.id];
-    p.inj = null; p.inj_note = null; p.inj_week = wk;
+    p.inj = null; p.inj_note = null; p.inj_week = wk; p.inj_long = false;
     if (st) {
       const des = st.injury_status || st.report_status || null;
       const outish = /^(IR|PUP|Sus|NFI|DNR|Out)$/i.test(des || "");
+      // a reserve list means at least four more games, not just this one
+      p.inj_long = /^(IR|PUP|NFI|Sus)$/i.test(des || "");
       p.inj = des ? (outish ? "Out" : des) : null;
       const bits = [];
       if (des && outish && !/^Out$/i.test(des)) bits.push(des);
