@@ -2019,13 +2019,28 @@ function renderMatchup() {
     : (Number(lg.manual_opponent_week) === Number(wk) ? lg.manual_opponent : null);
   const oppRoster = lg.rosters.find(r => r.id === oppId);
 
+  // The platform is asked for the pairing as soon as a league opens. Until it
+  // has answered, wait for it: never put a "pick your opponent" form in front
+  // of someone whose matchup is a second away.
+  const canAsk = typeof startLive === "function" && lg.league_id && !lg.sample;
+  if (!oppRoster && canAsk && !S.pairTried.has(lg.key + "|" + wk)) {
+    $("#p-matchup").innerHTML = `
+      <div class="card pad stack">
+        <div><span class="eyebrow">${esc(lg.platform)} · ${esc(lg.name)}</span>
+          <div class="h-sec">Loading your Week ${wk} matchup…</div></div>
+        <div class="sub">Reading this week's pairings from ${esc(lg.platform)}.</div>
+      </div>`;
+    if (!_pollInFlight) pollLive().then(scheduleLive);
+    return;
+  }
   if (!oppRoster) {
     $("#p-matchup").innerHTML = `
       <div class="card pad stack">
         <div><span class="eyebrow">${esc(lg.platform)} · ${esc(lg.name)}</span>
           <div class="h-sec">Who are you playing in Week ${wk}?</div></div>
-        <div class="sub">This league's pairings can't be read automatically. Pick your
-          Week ${wk} opponent and it sticks for the week — next week asks again.</div>
+        <div class="sub">${esc(lg.platform)} didn't return this week's pairings${
+          S.liveErr ? ` (${esc(S.liveErr)})` : ""}. Pick your Week ${wk} opponent for now;
+          the app keeps trying and switches to the real matchup when it loads.</div>
         <select id="oppPick" aria-label="Week ${wk} opponent">
           <option value="">Choose a team…</option>
           ${lg.rosters.filter(r => r.id !== meRoster.id)
@@ -4060,7 +4075,8 @@ function applyLive() {
  * stack a second one behind it, or a slow network turns into a queue of
  * requests that all land at once and fight over the render.
  */
-let _pollInFlight = false, _failStreak = 0;
+let _pollInFlight = false, _pollAgain = false, _failStreak = 0;
+S.pairTried = new Set();     // league|week pairs we have already asked the platform about
 
 async function pollLive() {
   const lg = S.league;
@@ -4070,7 +4086,10 @@ async function pollLive() {
   // what a stale copy must not present as current. Nothing to poll until the
   // data catches up.
   if (staleWeek()) { S.canPollLive = false; return; }
-  if (_pollInFlight) return;
+  // A poll already running may be for the league the viewer just left. Ask
+  // for another straight after it, or the new league waits out a full
+  // interval with no pairings and no scores.
+  if (_pollInFlight) { _pollAgain = true; return; }
   _pollInFlight = true;
   const wk = S.meta.upcoming_week;
 
@@ -4084,8 +4103,13 @@ async function pollLive() {
 
     // Real pairings and lineups, whatever the shipped snapshot guessed at.
     if (out.matchups && out.matchups.pairs.length) {
+      const had = lg.matchups && lg.matchups[String(wk)];
       lg.matchups = Object.assign({}, lg.matchups);
       lg.matchups[String(wk)] = out.matchups;
+      // keep them, so the next visit opens on the matchup instead of loading it
+      if (!had || JSON.stringify(had.pairs) !== JSON.stringify(out.matchups.pairs)) {
+        try { saveConnected(lg); } catch {}
+      }
     }
     S.directPts = out.scored ? out.pts : null;
     S.directTotals = out.scored ? rosterTotals(out.matchups) : null;
@@ -4097,7 +4121,9 @@ async function pollLive() {
     S.liveErr = String((err && err.message) || err);
   } finally {
     _pollInFlight = false;
+    S.pairTried.add(lg.key + "|" + wk);
   }
+  if (_pollAgain || S.league !== lg) { _pollAgain = false; return pollLive(); }
   // Either way, re-settle: a failed direct call does not invalidate the relay.
   applyLive();
 }
