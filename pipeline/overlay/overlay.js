@@ -282,14 +282,13 @@ function startOverlayTimer() {
 
 function overlayStatusHTML() {
   if (!S.ov) return S.ovErr
-    ? `<div class="sub" style="margin-bottom:10px">Couldn't fetch the latest projections and injury news (${esc(S.ovErr)}). Showing the data built into this page.</div>`
+    ? `<div class="sub statusline">Couldn't fetch the latest projections and injury news (${esc(S.ovErr)}). Showing the data built into this page.</div>`
     : "";
   const mins = Math.max(0, Math.round((Date.now() - S.ovAt) / 60e3));
   const age = mins < 1 ? "just now" : mins < 60 ? `${mins} min ago`
     : `${Math.round(mins / 6) / 10} h ago`;
-  return `<div class="sub" style="margin-bottom:10px">Projections, injuries, weather and
-    expert ranks updated ${age} · checks every ${S.ov.cadence ? S.ov.cadence.interval_min : 15} min${
-    S.statsStamp ? ` · player stats through Week ${S.meta.completed_week}` : ""}</div>`;
+  return `<div class="sub statusline">Updated ${age}${
+    S.statsStamp ? ` · stats through Week ${S.meta.completed_week}` : ""}</div>`;
 }
 
 function wxChip(p) {

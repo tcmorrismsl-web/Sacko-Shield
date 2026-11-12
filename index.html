@@ -85,11 +85,14 @@ button,input,select{font:inherit; color:inherit}
   background:var(--brand); color:var(--on-brand);
   box-shadow:0 1px 0 rgba(0,0,0,.14);
 }
-.top-in{max-width:1180px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-.mark{display:flex; align-items:center; gap:9px; margin-right:auto; min-width:0}
+.top-in{max-width:1180px; margin:0 auto; padding:9px 16px; display:flex; align-items:center; gap:8px; flex-wrap:nowrap; min-height:52px}
+.mark{display:flex; align-items:center; gap:10px; margin-right:auto; min-width:0; flex:1 1 auto}
 .mark svg{flex:none}
+.mark > div{min-width:0; line-height:1.2}
 .mark b{font-size:17px; font-weight:800; letter-spacing:-.015em; white-space:nowrap}
-.mark span{font-size:11px; opacity:.72; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap}
+.mark span{display:block; font-size:11px; opacity:.75; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.topbtn{flex:none}
+.topbtn.icon{padding:5px 8px; line-height:0}
 .topbtn{
   background:rgba(255,255,255,.12); color:inherit; border:1px solid rgba(255,255,255,.2);
   border-radius:99px; padding:5px 12px; font-size:12.5px; font-weight:600; cursor:pointer;
@@ -97,7 +100,7 @@ button,input,select{font:inherit; color:inherit}
 .topbtn:hover{background:rgba(255,255,255,.2)}
 
 .tabs{
-  position:sticky; top:calc(env(safe-area-inset-top,0px) + 48px); z-index:35;
+  position:sticky; top:calc(env(safe-area-inset-top,0px) + 52px); z-index:35;
   background:var(--card); border-bottom:1px solid var(--line);
   overflow-x:auto; scrollbar-width:none;
 }
@@ -108,6 +111,10 @@ button,input,select{font:inherit; color:inherit}
   padding:11px 12px; font-size:13.5px; font-weight:600; color:var(--muted); white-space:nowrap;
 }
 .tab[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--accent)}
+@media(max-width:480px){
+  .tabs-in{padding:0 4px; gap:0; justify-content:space-between}
+  .tab{padding:12px 7px; font-size:13px}
+}
 
 main{max-width:1180px; margin:0 auto; padding-block:18px 64px; padding-left:16px; padding-right:16px}
 
@@ -121,7 +128,19 @@ main{max-width:1180px; margin:0 auto; padding-block:18px 64px; padding-left:16px
 
 .eyebrow{font-size:10.5px; font-weight:700; letter-spacing:.11em; text-transform:uppercase; color:var(--muted)}
 .h-sec{font-size:18px; font-weight:700; letter-spacing:-.01em}
-.sub{color:var(--muted); font-size:12.5px}
+.sub{color:var(--muted); font-size:12.5px; line-height:1.5}
+.stat{display:inline-flex; align-items:baseline; gap:4px; border-radius:6px; padding:2px 7px; font-size:11.5px;
+  background:var(--sunk); color:var(--ink2); white-space:nowrap; font-variant-numeric:tabular-nums}
+.stat b{font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:12px}
+.stat.up{background:var(--good-soft); color:var(--good)}
+.stat.down{background:var(--bad-soft); color:var(--bad)}
+.stats{display:flex; flex-wrap:wrap; gap:6px}
+.move.plain{border-color:var(--line); background:var(--card2)}
+.srcbox > summary{cursor:pointer; list-style:none; display:flex; justify-content:space-between; align-items:center}
+.srcbox > summary::-webkit-details-marker{display:none}
+.srcbox > summary::after{content:"+"; font-size:16px; font-weight:600; color:var(--muted); letter-spacing:0}
+.srcbox[open] > summary::after{content:"−"}
+.statusline{font-size:12px; margin:0 2px 12px}
 .divider{height:1px; background:var(--line); border:0; margin:0}
 
 .chip{
@@ -280,19 +299,23 @@ a{color:var(--brand)}
 <header class="top">
   <div class="top-in">
     <div class="mark">
-      <svg width="24" height="27" viewBox="0 0 24 27" aria-hidden="true">
-        <path d="M12 1 22 4.4v9.1c0 6-4.2 10.4-10 12.4C6.2 23.9 2 19.5 2 13.5V4.4L12 1Z"
-              fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-        <path d="M8.2 13.6 11 16.4l5.2-5.6" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true" style="border-radius:7px">
+        <rect width="100" height="100" fill="#0b2b2a"/>
+        <path d="M30 26 H16 C16 44 22 52 32 54 M70 26 H84 C84 44 78 52 68 54" fill="none" stroke="#e3b23c" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M28 16 H72 V36 C72 52 62 62 50 64 C38 62 28 52 28 36 Z" fill="#e3b23c"/>
+        <g transform="translate(50 37) rotate(-30)"><path d="M-14 0 C-8 -8.5 8 -8.5 14 0 C8 8.5 -8 8.5 -14 0 Z" fill="#0b2b2a"/></g>
+        <rect x="44" y="62" width="12" height="12" fill="#e3b23c"/>
+        <rect x="30" y="74" width="40" height="12" rx="3" fill="#5cb8a0"/>
       </svg>
       <div>
-        <b>Sacko Shield</b><br>
+        <b>Sacko Shield</b>
         <span id="leagueLabel">loading league</span>
       </div>
     </div>
     <button class="topbtn" id="btnConnect" type="button">League</button>
-    <button class="topbtn" id="btnTheme" type="button" aria-label="Switch theme">Theme</button>
+    <button class="topbtn icon" id="btnTheme" type="button" aria-label="Switch light or dark theme" title="Light / dark">
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    </button>
   </div>
 </header>
 
@@ -2500,22 +2523,20 @@ function renderWeek() {
 
   $("#p-week").innerHTML = `
     ${rosterSourceBanner()}
-    <div class="grid g3">
-      ${tile("Projected", fmt(total, 1), (() => {
-        const sc = scoringOf(lg);
-        if (!sc) return "optimal lineup, PPR";
-        if (lg.scoring_partial) return `optimal lineup, ${sc.rec} PPR`;
-        return `optimal lineup, ${sc.pass_td}pt pass TD`;
-      })())}
+    <div class="tilerow">
+      ${tile("Projected", fmt(total, 1), "best lineup")}
       ${(() => {
         const known = lg.rosters.filter(r => (r.players || []).length).length;
         return known >= 3
-          ? tile("League median", fmt(medianProj(), 1),
-                 `${known} of ${lg.teams} rosters known`)
-          : tile("League median", "—",
-                 `only ${known} roster${known === 1 ? "" : "s"} loaded`);
+          ? tile("League median", fmt(medianProj(), 1), "projected")
+          : tile("League median", "—", `${known} roster${known === 1 ? "" : "s"} loaded`);
       })()}
-      ${tile("Your record", matchupLine(r), esc(r.name))}
+      ${(() => {
+        const all = lg.rosters.map(x => teamTotal(x.players, lg)).sort((a, b) => b - a);
+        const rank = all.findIndex(v => v <= total) + 1;
+        const ord = n => n + (["th","st","nd","rd"][n % 10 > 3 || (n % 100 > 10 && n % 100 < 14) ? 0 : n % 10]);
+        return tile("Record", `${r.wins}-${r.losses}`, `${ord(rank)} of ${lg.rosters.length} this week`);
+      })()}
     </div>
 
     ${ch && ch.rows.length ? `<div class="card pad stack">
@@ -2681,25 +2702,26 @@ function renderWaiver() {
     <div class="card pad stack">
       <div><span class="eyebrow">${esc(r.name)} · Week ${S.meta.upcoming_week}</span>
         <div class="h-sec">${moves.length ? "Best waiver moves" : "No waiver move improves your lineup"}</div></div>
-      ${moves.map(x => `<div class="move" data-player="${esc(x.id)}" tabindex="0">
-        <div><div class="pmeta">add</div><div class="pname">${nameCell(x)}</div>
-          <div class="pmeta mono">${esc(x.team)} ${oppTxt(x)}${
-            recentPPG(x) != null ? ` · ${fmt(recentPPG(x))} last 3` : ""}${
-            verify(x) ? ` · <span class="chip warn">verify he's free</span>` : ""}</div></div>
-        <div class="arrow">⇄</div>
-        <div><div class="pmeta">drop</div><div class="pname">${nameCell(x.im.drop)}</div>
-          <div class="pmeta mono">${sign(x.im.d.wk)} this week · ${sign(x.im.d.ros)}/wk rest of season</div></div>
+      ${moves.map(x => `<div class="move plain" data-player="${esc(x.id)}" tabindex="0" style="grid-template-columns:1fr; gap:8px">
+        <div class="row" style="justify-content:space-between; gap:8px">
+          <div class="row" style="gap:8px"><span class="chip good">Add</span><span class="pname">${nameCell(x)}</span></div>
+          <div class="row" style="gap:8px"><span class="chip">Drop</span><span class="pname">${nameCell(x.im.drop)}</span></div>
+        </div>
+        <div class="stats">
+          <span class="stat ${x.im.d.wk > 0.05 ? "up" : ""}"><b>${sign(x.im.d.wk)}</b> this week</span>
+          <span class="stat ${x.im.d.ros > 0.05 ? "up" : ""}"><b>${sign(x.im.d.ros)}</b> per week after</span>
+          ${recentPPG(x) != null ? `<span class="stat"><b>${fmt(recentPPG(x))}</b> avg last 3</span>` : ""}
+          ${verify(x) ? `<span class="chip warn">verify he's free</span>` : ""}
+        </div>
       </div>`).join("")}
       <div class="sub">${moves.length
-        ? "Each move is judged by your starting lineup after the swap: this week's projection, and the rest-of-season consensus priced in this league's scoring. The drop is whoever your lineup misses least."
-        : "Nobody available would start for you over who you have, this week or over the rest of the season. The table below still ranks the best stashes."}${
-        isDynasty(lg) ? " In this dynasty league, long-term value also protects young players from being the drop." : ""}
-        Players on IR aren't offered as drops: in an IR slot they don't use a roster spot. If one of yours is on your bench instead, he's the easy cut.</div>
+        ? "Judged by your starting lineup after the swap, in this league's scoring. The drop is the player your lineup misses least; IR players aren't suggested."
+        : "Nobody available would start for you, this week or later. The table below ranks the best stashes."}</div>
     </div>
 
     <div class="card pad stack">
       <div><span class="eyebrow">${esc(r.name)}</span>
-        <div class="h-sec">Where your roster actually needs help</div></div>
+        <div class="h-sec">Roster needs</div></div>
       <div class="grid g2">
         ${gradedPositions(lg).map(pos => {
           const n = needs[pos], c = n.label === "need" ? "bad" : n.label === "thin" ? "warn"
@@ -2745,15 +2767,17 @@ function renderWaiver() {
             poolTotal === 1 ? "es" : ""}${poolTotal > 80 ? " — showing the top 80" : ""}.`
         })}
       </div>
-      <div class="pad sub" style="padding-top:0">
+      <details class="pad sub srcbox" style="padding-top:0">
+        <summary>What the columns mean</summary>
+        <div style="margin-top:6px">
         “+Wk” and “+ROS” are what your starting lineup gains per week by adding him
         and dropping the player named under him (this week, and on average over
         the rest of the season). Score blends that with role, recent form and how
         gettable he is. “vs repl” is projected points above the last startable player at that
         position in a ${lg.teams}-team league
         (${["QB","RB","WR","TE"].map(x => `${x} ${fmt(replacement()[x])}`).join(" · ")}).
-        It is the only fair way to line a tight end up against a receiver.
-      </div>
+        It is the only fair way to line a tight end up against a receiver.</div>
+      </details>
       <div class="tw"><table id="waiverTable"><thead><tr>
         ${[["name","Player","t"],["ws","Score","n"],["gwk","+Wk","n"],["gros","+ROS","n"],[null,"FAAB","t"],
            ["proj","Wk " + S.meta.upcoming_week,"n"],["par","vs repl","n"],
@@ -2767,7 +2791,7 @@ function renderWaiver() {
         const fit = needs[p.pos];
         return `<tr data-player="${esc(p.id)}" tabindex="0">
           <td class="nm">${nameCell(p)}<div class="pmeta mono">${esc(p.team)} ${oppTxt(p)}${
-            p.im && p.im.drop ? ` · drop ${esc(p.im.drop.name)}` : ""}${
+            p.im && p.im.drop && p.gain > 0.05 ? ` · drop ${esc(p.im.drop.name)}` : ""}${
             verify(p) ? ` · <span class="chip warn">verify</span>` : ""}</div></td>
           <td class="n"><b>${p.ws}</b></td>
           <td class="n" style="color:${p.im && p.im.d.wk > 0.05 ? "var(--good)" : "var(--muted)"}">${p.im ? sign(p.im.d.wk) : "—"}</td>
@@ -2838,21 +2862,22 @@ function renderTrade() {
       <div><span class="eyebrow">${esc(r.name)} · ${isDynasty(lg) ? (sf ? "superflex" : "1QB") + " dynasty values" : "rest-of-season points"}</span>
         <div class="h-sec">${deals.length ? "Trades worth proposing" : "No fair trade found that helps both sides"}</div></div>
       ${deals.map((d, i) => `<div class="deal">
-        <div class="row" style="justify-content:space-between; gap:8px; flex-wrap:wrap">
+        <div class="row" style="justify-content:space-between; gap:8px">
           <span class="eyebrow">with ${esc(d.team.name)}</span>
-          <button class="btn ghost sm" data-deal="${i}">Load in calculator</button></div>
-        <div class="move">
-          <div><div class="pmeta">you send</div><div class="pname">${names(d.give)}</div></div>
-          <div class="arrow">⇄</div>
-          <div><div class="pmeta">you get</div><div class="pname">${names(d.get)}</div></div>
+          <button class="btn ghost sm" data-deal="${i}">Load</button></div>
+        <div class="grid" style="grid-template-columns:auto 1fr; gap:6px 10px; align-items:start">
+          <span class="chip" style="justify-self:start">Send</span><div class="stack" style="gap:4px">${d.give.map(p => `<span class="pname">${nameCell(p)}</span>`).join("")}</div>
+          <span class="chip good" style="justify-self:start">Get</span><div class="stack" style="gap:4px">${d.get.map(p => `<span class="pname">${nameCell(p)}</span>`).join("")}</div>
         </div>
-        <div class="pmeta mono">Your lineup ${sg(d.dMe.wk)} this week, ${sg(d.dMe.ros)}/wk rest of season ·
-          theirs ${sg(d.dThem.ros)}/wk · value ${fmt(d.gv, 0)} out, ${fmt(d.wv, 0)} in</div>
+        <div class="stats">
+          <span class="stat ${d.dMe.ros > 0.05 ? "up" : "down"}"><b>${sg(d.dMe.ros)}</b> per week for you</span>
+          <span class="stat ${d.dMe.wk > 0.05 ? "up" : d.dMe.wk < -0.05 ? "down" : ""}"><b>${sg(d.dMe.wk)}</b> this week</span>
+          <span class="stat"><b>${sg(d.dThem.ros)}</b> for them</span>
+        </div>
       </div>`).join("")}
-      <div class="sub">Every deal here is within 15% on ${esc(valueLabel())}, makes your
-        starting lineup better, and makes theirs better too, so it's one they have a reason
-        to accept. Injured players on reserve lists aren't targeted.${deals.length ? "" :
-        " Try the calculator below for deals involving picks or more than two players."}</div>
+      <div class="sub">Each deal is close in ${esc(valueLabel())} and improves both
+        starting lineups for the rest of the season, so the other manager has a reason to say yes.${deals.length ? "" :
+        " Use the calculator below for deals with picks or more players."}</div>
     </div>
 
     <div class="card pad stack">
@@ -3524,8 +3549,9 @@ function sourceCard() {
   const s = S.meta.sources || {}, c = S.meta.proj_counts || {};
   const stale = S.meta.weekly_covers_week &&
                 S.meta.weekly_covers_week < S.meta.upcoming_week;
-  return `<div class="card pad stack" style="gap:8px">
-    <span class="eyebrow">Where these numbers come from</span>
+  return `<details class="card pad srcbox">
+    <summary class="eyebrow">How these numbers are made</summary>
+    <div class="stack" style="gap:8px; margin-top:12px">
     <div class="srcline">
       <b>Week ${esc(String(S.meta.upcoming_week ?? "—"))} projections</b> are Sleeper's
       projected stat lines (${esc(String(c.sleeper ?? 0))} players when this copy was built),
@@ -3573,7 +3599,7 @@ function sourceCard() {
          Your leagues refresh every time you open the page.`
       : `This is the standalone build: player data is baked in and refreshes when you
          rebuild the file; Sleeper leagues refresh themselves every time you open the page.`}</div>
-  </div>`;
+  </div></details>`;
 }
 
 let toastT;
@@ -4901,14 +4927,13 @@ function startOverlayTimer() {
 
 function overlayStatusHTML() {
   if (!S.ov) return S.ovErr
-    ? `<div class="sub" style="margin-bottom:10px">Couldn't fetch the latest projections and injury news (${esc(S.ovErr)}). Showing the data built into this page.</div>`
+    ? `<div class="sub statusline">Couldn't fetch the latest projections and injury news (${esc(S.ovErr)}). Showing the data built into this page.</div>`
     : "";
   const mins = Math.max(0, Math.round((Date.now() - S.ovAt) / 60e3));
   const age = mins < 1 ? "just now" : mins < 60 ? `${mins} min ago`
     : `${Math.round(mins / 6) / 10} h ago`;
-  return `<div class="sub" style="margin-bottom:10px">Projections, injuries, weather and
-    expert ranks updated ${age} · checks every ${S.ov.cadence ? S.ov.cadence.interval_min : 15} min${
-    S.statsStamp ? ` · player stats through Week ${S.meta.completed_week}` : ""}</div>`;
+  return `<div class="sub statusline">Updated ${age}${
+    S.statsStamp ? ` · stats through Week ${S.meta.completed_week}` : ""}</div>`;
 }
 
 function wxChip(p) {
