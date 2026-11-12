@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" sizes="48x48" href="brand/favicon.png">
 <link rel="icon" type="image/svg+xml" href="brand/logo.svg">
 <meta name="apple-mobile-web-app-title" content="Sacko Shield">
-<meta name="sacko-build" content="b36989af5ab9">
+<meta name="sacko-build" content="fb92c8624221">
 <meta name="theme-color" content="#0b0b0c">
 <style>
   :root {
@@ -132,7 +132,7 @@ button,input,select{font:inherit; color:inherit}
   }
   .tab svg{display:block; width:22px; height:22px}
   .tab[aria-selected="true"]{border-top-color:var(--accent); border-bottom-color:transparent; color:var(--brand)}
-  main{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  html main{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
   .toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 }
 
@@ -3305,16 +3305,27 @@ function renderLeague() {
       <div class="tw"><table><thead><tr><th>Team</th>
         ${["QB","RB","WR","TE"].map(p => `<th class="n">${p}</th>`).join("")}
       </tr></thead><tbody>
-      ${rows.map(r => `<tr${r.id === S.myTeam ? ' style="background:var(--brand-soft)"' : ""}>
+      ${(() => {
+        // Dynasty: total long-term value at the position. Redraft: what the
+        // position's own lineup slots score per week for the rest of the season.
+        const dyn = isDynasty(lg);
+        const lp = dyn ? null : new Map(rows.map(r => [r.id, posLineupPts(r.players, lg)]));
+        const valOf = (r, pos) => dyn ? r.st[pos].top : ((lp.get(r.id) || {})[pos] || 0);
+        const maxOf = Object.fromEntries(["QB","RB","WR","TE"].map(pos =>
+          [pos, Math.max(1e-9, ...rows.map(r => valOf(r, pos)))]));
+        return rows.map(r => `<tr${r.id === S.myTeam ? ' style="background:var(--brand-soft)"' : ""}>
         <td class="nm">${esc(r.name)}</td>
         ${["QB","RB","WR","TE"].map(pos => {
-          const share = r.st[pos].top / posMax[pos];
+          const v = valOf(r, pos), share = v / maxOf[pos];
           return `<td class="n"><div class="row" style="justify-content:flex-end; gap:7px">
             <div class="bar" style="width:52px"><i style="width:${Math.round(share * 100)}%"></i></div>
-            <span style="width:34px">${fmt(r.st[pos].top / 1000, 1)}k</span></div></td>`;
+            <span style="width:34px">${dyn ? fmt(v / 1000, 1) + "k" : fmt(v, 1)}</span></div></td>`;
         }).join("")}
-      </tr>`).join("")}
+      </tr>`).join(""); })()}
       </tbody></table></div>
+      <div class="pad sub">${isDynasty(lg)
+        ? "Total dynasty value held at each position, in thousands."
+        : "Projected points per week from each position's own starting slots, for the rest of the season, in this league's scoring."}</div>
     </div>
 
     ${sourceCard()}`;
