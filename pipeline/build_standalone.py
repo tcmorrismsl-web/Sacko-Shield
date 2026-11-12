@@ -466,6 +466,7 @@ doc = f"""<!doctype html>
 <link rel="icon" type="image/png" sizes="48x48" href="brand/favicon.png">
 <link rel="icon" type="image/svg+xml" href="brand/logo.svg">
 <meta name="apple-mobile-web-app-title" content="Sacko Shield">
+<meta name="sacko-build" content="__SACKO_BUILD__">
 <meta name="theme-color" content="#0b0b0c">
 <style>
   :root {{
@@ -504,6 +505,9 @@ if args.public and (APP / "data" / "leagues.json").exists():
         raise SystemExit(f"public build would expose {len(leaked)} private names/IDs; not written")
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
+# a fingerprint of this exact page, so an open copy can tell it is out of date
+import hashlib as _h
+doc = doc.replace("__SACKO_BUILD__", _h.sha1(doc.encode()).hexdigest()[:12])
 OUT.write_text(doc)
 kb = OUT.stat().st_size / 1024
 print(f"wrote {OUT}  ({kb:.0f} KB)")
