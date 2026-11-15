@@ -484,7 +484,6 @@ doc = f"""<!doctype html>
   img {{ max-width: 100%; }}
   [hidden] {{ display: none !important; }}
 </style>
-{DATA_BLOCK}
 {src}
 </head>
 </html>
@@ -496,6 +495,13 @@ head_end = doc.index("<style>\n:root{")
 title_block, rest = doc[:head_end], doc[head_end:]
 doc = title_block + "</head>\n<body>\n" + rest.replace(
     "</head>\n<body></body>\n</html>", "</body>\n</html>")
+# The 1.4 MB of data goes AFTER the header and tab markup, right before the
+# script that reads it, so a slow connection paints the app shell first
+# instead of a blank screen while the data downloads.
+_main = "<script>\n/* ============================================================ Sacko Shield"
+if doc.count(_main) != 1:
+    raise SystemExit("anchor missing — main script start")
+doc = doc.replace(_main, DATA_BLOCK + "\n" + _main, 1)
 
 # Guard: a public build must not contain any name or ID from the local leagues file.
 if args.public and (APP / "data" / "leagues.json").exists():

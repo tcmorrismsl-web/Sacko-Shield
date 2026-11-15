@@ -2,8 +2,11 @@
 <title>Sacko Shield</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Neither the fonts nor the spreadsheet library may hold up the first paint:
+     on a weak signal a render-blocking request to another host leaves the
+     screen blank until it times out. Fonts swap in when they arrive; the
+     spreadsheet library loads in the background, or on the first export. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
 
 <style>
 :root{
@@ -2035,7 +2038,15 @@ function renderTabs() {
       }
       reader.cancel().catch(() => {});
       const m = head.match(/name="sacko-build" content="([0-9a-f]{6,})"/);
-      if (m && m[1] !== mine) location.reload();
+      if (!m || m[1] === mine) return;
+      // Reload at most once per new build per ten minutes: if the host's
+      // cache hands back the old page again, don't loop. The ?v= address is
+      // new, so the reload asks the host for the new page, not its cache.
+      let tried = null;
+      try { tried = JSON.parse(sessionStorage.getItem("sacko.reloadFor") || "null"); } catch {}
+      if (tried && tried.b === m[1] && Date.now() - tried.at < 10 * 60e3) return;
+      try { sessionStorage.setItem("sacko.reloadFor", JSON.stringify({ b: m[1], at: Date.now() })); } catch {}
+      location.replace(location.pathname + "?v=" + m[1] + location.hash);
     } catch { /* offline: keep what we have */ }
   }
   document.addEventListener("visibilitychange", check);
@@ -4001,10 +4012,28 @@ function renderPlayers() {
 /* ----------------------------------------------------------------- export */
 function sheetFrom(rows) { return XLSX.utils.json_to_sheet(rows); }
 
+let _xlsxP = null;
+function loadXlsx() {
+  if (typeof XLSX !== "undefined") return Promise.resolve();
+  if (_xlsxP) return _xlsxP;
+  _xlsxP = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.async = true;
+    s.onload = () => res();
+    s.onerror = () => { _xlsxP = null; s.remove(); rej(new Error("xlsx")); };
+    document.head.appendChild(s);
+  });
+  return _xlsxP;
+}
+// fetch it quietly once the page has settled, so Export is instant later
+window.addEventListener("load", () => setTimeout(() => loadXlsx().catch(() => {}), 6000));
+
 async function exportXlsx(kind) {
   if (typeof XLSX === "undefined") {
-    toast("The spreadsheet library didn't load — check the connection and reload.");
-    return;
+    toast("Loading the spreadsheet tool…");
+    try { await loadXlsx(); }
+    catch { toast("The spreadsheet tool didn't load — check the connection and try again."); return; }
   }
   const wb = XLSX.utils.book_new();
   const lg = S.league;
