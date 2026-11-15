@@ -429,10 +429,16 @@ swap('''/** Quietly pull fresh rosters for every league we already know about. *
 
 swap('''    const fromLink = await loadFromLink();''',
 '''    // fresh projections / injuries / weather first, so leagues load against the
-    // right week
-    await loadOverlay({ render: false });
+    // right week. The copy saved on the last visit applies instantly; the
+    // network gets a few seconds before the page moves on, and whatever
+    // arrives after that is swapped in when it lands.
+    const hadCache = applyCachedOverlay();
+    if (hadCache) loadStats(S.ov.stats_stamp);
+    const ovP = loadOverlay({ render: false });
+    await Promise.race([ovP, new Promise(r => setTimeout(r, hadCache ? 1200 : 5000))]);
     startOverlayTimer();
     if (S.ov) { renderTabs(); if (S.tab) show(S.tab); }
+    ovP.then(changed => { if (changed) { renderTabs(); if (S.tab) show(S.tab); } });
     const fromLink = await loadFromLink();''', "overlay on boot")
 
 swap('''  return `<span class="chip ${cls}" title="Report from Week ${wk}">${esc(p.inj[0])}${''',

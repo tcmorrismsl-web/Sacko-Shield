@@ -24,8 +24,32 @@
 
 const OVERLAY_URL = "https://raw.githubusercontent.com/tcmorrismsl-web/Sacko-Shield/data/overlay.json";
 const OVERLAY_EVERY_MS = 15 * 60e3;
-const OVERLAY_TIMEOUT_MS = 6000;
-let _ovTimer = null, _ovInFlight = false;
+// A phone on a weak signal (a stadium, a car) can take well over 6s for the
+// file, so the fetch itself gets a generous budget and two retries; the page
+// never waits on it — it opens on the last copy this browser saved and
+// swaps the new one in when it lands.
+const OVERLAY_TIMEOUT_MS = 25000;
+const OVERLAY_CACHE_KEY = "sacko.ov";
+const OVERLAY_CACHE_MAX_AGE = 36 * 3600e3;
+let _ovTimer = null, _ovInFlight = null, _ovRetry = null;
+
+function readOverlayCache() {
+  try {
+    const ov = JSON.parse(localStorage.getItem(OVERLAY_CACHE_KEY) || "null");
+    if (!ov || !ov.generated_at) return null;
+    if (Date.now() - Date.parse(ov.generated_at) > OVERLAY_CACHE_MAX_AGE) return null;
+    return ov;
+  } catch { return null; }
+}
+function writeOverlayCache(ov) {
+  try { localStorage.setItem(OVERLAY_CACHE_KEY, JSON.stringify(ov)); } catch {}
+}
+/** Apply the copy saved on the last visit, instantly, before any network. */
+function applyCachedOverlay() {
+  const ov = readOverlayCache();
+  if (!ov || (S.ov && Date.parse(S.ov.generated_at) >= Date.parse(ov.generated_at))) return false;
+  try { return applyOverlay(ov); } catch { return false; }
+}
 
 /* which multiplier each stat key takes */
 function wxKind(k) {
@@ -248,28 +272,47 @@ async function fetchOverlay() {
       { cache: "no-store", signal: ctl.signal });
     if (!r.ok) throw new Error("HTTP " + r.status);
     return await r.json();
+  } catch (err) {
+    if (err && err.name === "AbortError") throw new Error("timed out");
+    throw err;
   } finally { clearTimeout(t); }
 }
 
-/** Fetch and apply; re-render if anything changed. Safe to call any time. */
-async function loadOverlay(opts = {}) {
-  if (_ovInFlight) return false;
-  _ovInFlight = true;
-  try {
-    const ov = await fetchOverlay();
-    if (!ov || (S.ov && ov.generated_at === S.ov.generated_at && !opts.force)) return false;
+/** Fetch and apply; re-render if anything changed. Safe to call any time;
+    a call while one is running shares it. */
+function loadOverlay(opts = {}) {
+  if (_ovInFlight) return _ovInFlight;
+  _ovInFlight = (async () => {
+    let ov = null, lastErr = null;
+    for (let attempt = 0; attempt < 3 && !ov; attempt++) {
+      if (attempt) await new Promise(r => setTimeout(r, attempt === 1 ? 3000 : 10000));
+      try { ov = await fetchOverlay(); } catch (err) { lastErr = err; }
+    }
+    if (!ov) {
+      S.ovErr = String((lastErr && lastErr.message) || lastErr || "no answer");
+      // keep trying every minute while the page is open
+      clearTimeout(_ovRetry);
+      _ovRetry = setTimeout(() => { if (!document.hidden) loadOverlay(); }, 60e3);
+      const sb = $("#staleBanner"); if (sb) sb.innerHTML = staleBannerHTML();
+      return false;
+    }
+    S.ovErr = null;
+    clearTimeout(_ovRetry);
+    if (S.ov && ov.generated_at === S.ov.generated_at && !opts.force) {
+      const sb = $("#staleBanner"); if (sb) sb.innerHTML = staleBannerHTML();
+      return false;
+    }
     const weekBefore = S.meta.upcoming_week;
     if (!applyOverlay(ov)) return false;
+    writeOverlayCache(ov);
     await loadStats(ov.stats_stamp);
     if (opts.render !== false) {
       if (S.meta.upcoming_week !== weekBefore) renderTabs();
       if (S.tab) show(S.tab);
     }
     return true;
-  } catch (err) {
-    S.ovErr = String((err && err.message) || err);
-    return false;
-  } finally { _ovInFlight = false; }
+  })().finally(() => { _ovInFlight = null; });
+  return _ovInFlight;
 }
 
 function startOverlayTimer() {
@@ -282,13 +325,14 @@ function startOverlayTimer() {
 
 function overlayStatusHTML() {
   if (!S.ov) return S.ovErr
-    ? `<div class="sub statusline">Couldn't fetch the latest projections and injury news (${esc(S.ovErr)}). Showing the data built into this page.</div>`
+    ? `<div class="sub statusline">Slow connection — couldn't reach the latest projections and injury news yet. Using the copy built into this page and retrying every minute.</div>`
     : "";
   const mins = Math.max(0, Math.round((Date.now() - S.ovAt) / 60e3));
   const age = mins < 1 ? "just now" : mins < 60 ? `${mins} min ago`
     : `${Math.round(mins / 6) / 10} h ago`;
   return `<div class="sub statusline">Updated ${age}${
-    S.statsStamp ? ` · stats through Week ${S.meta.completed_week}` : ""}</div>`;
+    S.statsStamp ? ` · stats through Week ${S.meta.completed_week}` : ""}${
+    S.ovErr ? " · slow connection, retrying" : ""}</div>`;
 }
 
 function wxChip(p) {
