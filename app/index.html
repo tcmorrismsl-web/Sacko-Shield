@@ -93,7 +93,7 @@ button,input,select{font:inherit; color:inherit}
     padding-bottom:env(safe-area-inset-bottom,0px);
     box-shadow:0 -4px 16px -10px rgba(16,32,30,.35); overflow:visible;
   }
-  .tabs-in{display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0; padding:0 2px}
+  .tabs-in{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:0; padding:0 2px}
   .tab{
     display:flex; flex-direction:column; align-items:center; gap:3px;
     padding:8px 0 7px; font-size:10.5px; font-weight:600; letter-spacing:.01em;
@@ -133,6 +133,23 @@ main{max-width:1180px; margin:0 auto; padding-block:18px 64px; padding-left:16px
 .stat.down{background:var(--bad-soft); color:var(--bad)}
 .stats{display:flex; flex-wrap:wrap; gap:6px}
 .move.plain{border-color:var(--line); background:var(--card2)}
+.hub-grid{display:grid; gap:12px}
+@media(min-width:760px){.hub-grid{grid-template-columns:1fr 1fr}}
+.hub-card{text-align:left; font:inherit; color:inherit; cursor:pointer; width:100%; gap:12px}
+.hub-card:active{transform:scale(.995)}
+.hub-top{display:flex; gap:12px; align-items:center}
+.hub-top .nm2{font-weight:700; font-size:15px; line-height:1.25; overflow-wrap:anywhere}
+.hub-logo{width:40px; height:40px; border-radius:10px; object-fit:cover; flex:none; background:var(--sunk)}
+.hub-init{display:grid; place-items:center; font-weight:700; color:var(--brand)}
+.hub-score{display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:center}
+.hub-score .side{min-width:0}
+.hub-score .nm1{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.hub-score .pts{font-family:"IBM Plex Mono",monospace; font-size:26px; font-weight:600; color:var(--ink2); line-height:1.2}
+.hub-score .pts.lead{color:var(--ink)}
+.hub-score .vs{font-size:11px; color:var(--muted); font-weight:700; letter-spacing:.08em}
+.hub-wp{display:flex; align-items:center; gap:10px; font-size:12.5px; color:var(--ink2)}
+.hub-wp .bar{flex:1; height:6px; border-radius:3px; background:var(--sunk); overflow:hidden}
+.hub-wp .bar i{display:block; height:100%; background:var(--brand); border-radius:3px}
 .seg{display:inline-flex; background:var(--sunk); border-radius:9px; padding:3px; gap:2px; align-self:flex-start}
 .seg button{border:0; background:none; padding:7px 14px; border-radius:7px; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; min-height:34px}
 .seg button[aria-selected="true"]{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(16,32,30,.12)}
@@ -329,6 +346,7 @@ a{color:var(--brand)}
 
 <main>
   <div id="staleBanner"></div>
+  <section id="p-hub"    role="tabpanel" class="stack" hidden></section>
   <section id="p-matchup" role="tabpanel" class="stack"></section>
   <section id="p-week"   role="tabpanel" class="stack" hidden></section>
   <section id="p-waiver" role="tabpanel" class="stack" hidden></section>
@@ -1963,6 +1981,7 @@ async function tryEspn(leagueId, season) {
 
 /* ================================================================== render */
 const TABS = [
+  ["hub",     () => "Hub"],
   ["matchup", () => "Matchup"],
   ["week",   () => "Week " + (S.meta.upcoming_week || "")],
   ["waiver", () => "Waivers"],
@@ -1972,6 +1991,7 @@ const TABS = [
 ];
 
 const TAB_ICONS = {
+  hub:     '<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>',
   matchup: '<path d="M4 6h6v12H4zM14 6h6v12h-6z"/><path d="M12 3v18" stroke-dasharray="2 2.5"/>',
   week:    '<path d="M4 5h16v15H4z"/><path d="M4 9h16M9 3v4M15 3v4M8 13h3M8 16h6"/>',
   waiver:  '<circle cx="10" cy="8" r="3.5"/><path d="M3.5 20c.6-3.6 3.2-5.5 6.5-5.5 1.3 0 2.5.3 3.5.9M18 13v7M14.5 16.5h7"/>',
@@ -2052,7 +2072,8 @@ function show(tab) {
   if (sb) sb.innerHTML = staleBannerHTML();
   TABS.forEach(([k]) => { $("#p-" + k).hidden = k !== tab; });
   $$(".tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
-  ({ matchup: renderMatchup, week: renderWeek, waiver: renderWaiver,
+  if (tab !== "hub") clearTimeout(_hubTimer);
+  ({ hub: renderHub, matchup: renderMatchup, week: renderWeek, waiver: renderWaiver,
      trade: renderTrade, league: renderLeague, players: renderPlayers }[tab])();
   window.scrollTo({ top: 0, behavior: "instant" });
   try { localStorage.setItem("ss.tab", tab); } catch {}
@@ -2294,6 +2315,204 @@ function mRow(s, showLive) {
     <div class="n">${showLive ? fmt(s.got) : ""}</div>
     <div class="n" style="color:var(--muted)">${fmt(s.proj)}</div>
   </div>`;
+}
+
+/* ================================================================ the hub
+   Every connected league on one screen: your team, your record and seed,
+   this week's opponent, the score as the platform reports it, the projected
+   final and the chance to win. Each league's numbers are worked out in that
+   league's own scoring and lineup, with the same engine the Matchup tab uses
+   (the selected league is swapped in for the calculation and swapped back).
+   Scores are read straight from Sleeper / ESPN per league: every minute while
+   a game is on and the hub is open, every five minutes otherwise. */
+const HUB_FRESH_MS = 50e3;
+let _hubTimer = null;
+
+async function hubFetch(lg) {
+  const wk = Number(S.meta.upcoming_week);
+  if (!lg || !lg.league_id || lg.sample || staleWeek()) return;
+  if (lg._hub && lg._hub.wk === wk && Date.now() - lg._hub.at < HUB_FRESH_MS) return;
+  if (lg._hubP) return lg._hubP;
+  lg._hubP = (async () => {
+    try {
+      const out = lg.source === "espn" ? await fetchEspnLive(lg, wk) : await fetchSleeperLive(lg, wk);
+      lg._hub = { wk, at: Date.now(), pts: out.scored ? out.pts : null, matchups: out.matchups, err: null };
+      if (out.matchups && out.matchups.pairs.length) {
+        lg.matchups = Object.assign({}, lg.matchups);
+        lg.matchups[String(wk)] = out.matchups;
+      }
+    } catch (e) {
+      lg._hub = Object.assign({}, lg._hub || {}, { wk, at: Date.now(), err: String((e && e.message) || e) });
+    } finally { lg._hubP = null; }
+  })();
+  return lg._hubP;
+}
+
+function hubSummary(lg) {
+  const wk = String(S.meta.upcoming_week);
+  const myId = lg === S.league ? S.myTeam : lg.my_team;
+  const meR = lg.rosters.find(r => r.id === myId) || lg.rosters[0];
+  if (!meR) return null;
+  const base = { lg, meR, seed: null, odds: null, opp: null };
+  // everything below runs in this league's scoring: swap it in, swap it back
+  const keep = { league: S.league, lp: S.livePoints };
+  S.league = lg; S.livePoints = null;
+  try {
+  try {
+    const seeds = currentSeeds(lg);
+    base.seed = seeds.order.indexOf(meR.id) + 1 || null;
+  } catch {}
+  try { const o = playoffOdds(lg); if (o) base.odds = o.odds[meR.id]; } catch {}
+  if (!hasRosters(lg) || staleWeek()) return base;
+
+  const mu = lg.matchups && lg.matchups[wk];
+  const pair = mu && mu.pairs && mu.pairs.find(x => x.rosters.includes(meR.id));
+  const oppId = pair ? pair.rosters.find(r => r !== meR.id)
+    : (Number(lg.manual_opponent_week) === Number(wk) ? lg.manual_opponent : null);
+  const opp = lg.rosters.find(r => r.id === oppId) || null;
+  const live = lg._hub && lg._hub.wk === Number(wk) ? lg._hub : null;
+  S.livePoints = live && live.pts ? live.pts : null;
+    const startersOf = r => {
+      const e = mu && mu.by_roster && mu.by_roster[r.id];
+      if (e && Array.isArray(e.starters) && e.starters.length) return e.starters;
+      return (r.players && r.players.length)
+        ? optimalLineup(r.players, lg).lineup.filter(Boolean).map(p => p.id) : [];
+    };
+    const mine = sideState(startersOf(meR));
+    let theirs = opp ? sideState(startersOf(opp)) : [];
+    if (opp && !theirs.length) {
+      const games = Math.max(1, (opp.wins || 0) + (opp.losses || 0));
+      const mean = (opp.pf || 0) / games;
+      if (mean > 0) theirs = [{ p: { id: "__opp" }, phase: "pre", left: 1, proj: mean, got: 0,
+        remainMean: mean, sd: Math.max(12, Math.sqrt(mine.reduce((a, s) => a + s.sd * s.sd, 0))),
+        expected: mean, synthetic: true }];
+    }
+    const booked = r => {
+      if (!S.livePoints) return null;
+      const e = mu && mu.by_roster && mu.by_roster[r.id];
+      return e && typeof e.points === "number" ? e.points : null;
+    };
+    const side = (arr, r) => {
+      const matched = arr.reduce((a, s) => a + s.got, 0);
+      const book = r ? booked(r) : null;
+      const got = book != null ? book : matched;
+      // the platform's score wins; any part we couldn't tie to a player is banked
+      const exp = arr.reduce((a, s) => a + s.expected, 0) + (book != null ? book - matched : 0);
+      return { got, exp, left: arr.filter(s => s.phase !== "final").length };
+    };
+    const a = side(mine, meR), b = opp ? side(theirs, opp) : null;
+    const anyLive = !!S.livePoints && mine.concat(theirs).some(s => s.phase !== "pre");
+    const done = anyLive && a.left === 0 && (!b || b.left === 0);
+    const wp = opp && theirs.length && mine.length ? simulate(mine, theirs, 6000).winProb : null;
+    return Object.assign(base, { opp, a, b, anyLive, done, wp,
+      err: live && live.err, starters: mine.length });
+  } finally { S.league = keep.league; S.livePoints = keep.lp; }
+}
+
+const ordinal = n => n + (["th", "st", "nd", "rd"][(n % 100 - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
+
+function renderHub() {
+  clearTimeout(_hubTimer);
+  const wk = Number(S.meta.upcoming_week);
+  const leagues = (S.leagues || []).filter(l => !l.sample);
+  if (!leagues.length) {
+    $("#p-hub").innerHTML = `<div class="card pad stack">
+      <div><span class="eyebrow">Hub</span><div class="h-sec">No leagues connected</div></div>
+      <div class="sub">Connect a Sleeper or ESPN league and every team you own shows up here,
+        with this week's matchup and score.</div></div>`;
+    return;
+  }
+  // fetch scores and schedules in the background; re-render when they land
+  const pending = [];
+  for (const lg of leagues) {
+    pending.push(hubFetch(lg));
+    if (!lg._sched || lg._sched.wk !== wk) pending.push(loadSeasonSchedule(lg).catch(() => {}));
+  }
+  const waiting = leagues.some(l => l._hubP || l._schedP);
+  if (waiting) Promise.all(pending).then(() => { if (S.tab === "hub") renderHub(); });
+
+  const rows = leagues.map(hubSummary).filter(Boolean);
+  const stale = staleWeek();
+  const live = rows.filter(r => r.anyLive);
+  const xWins = rows.reduce((a, r) => a + (r.wp != null ? r.wp : 0), 0);
+  const withWp = rows.filter(r => r.wp != null).length;
+  const leading = live.filter(r => r.b && r.a.got > r.b.got).length;
+
+  const pctTxt = v => v == null ? "—" : v >= 0.995 ? ">99%" : v <= 0.005 ? "<1%" : Math.round(v * 100) + "%";
+  const logo = r => r.logo
+    ? `<img class="hub-logo" src="${esc(r.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">`
+    : `<span class="hub-logo hub-init">${esc((r.name || "?").trim().slice(0, 1).toUpperCase())}</span>`;
+
+  const card = r => {
+    const lg = r.lg, m = r.meR;
+    const rec = `${m.wins || 0}-${m.losses || 0}${m.ties ? "-" + m.ties : ""}`;
+    const meta = [rec, r.seed ? ordinal(r.seed) + " of " + lg.rosters.length : null,
+      r.odds != null ? "Playoffs " + pctTxt(r.odds) : null].filter(Boolean).join(" · ");
+    let body;
+    if (stale) {
+      body = `<div class="sub">Week ${stale}'s matchups load once the data catches up.</div>`;
+    } else if (!hasRosters(lg)) {
+      body = `<div class="sub">No rosters for this league yet — open it to load them.</div>`;
+    } else if (!r.opp) {
+      body = `<div class="sub">${lg._hubP ? "Loading this week's matchup…"
+        : `No Week ${wk} opponent found${r.err ? " (" + esc(r.err) + ")" : ""} — open it to pick one.`}</div>`;
+    } else {
+      const winning = r.anyLive ? r.a.got >= r.b.got : r.a.exp >= r.b.exp;
+      const big = s => fmt(r.anyLive ? s.got : s.exp);
+      const wpv = r.wp == null ? null : Math.round(r.wp * 100);
+      const state = r.done ? (r.a.got > r.b.got ? "Won" : r.a.got < r.b.got ? "Lost" : "Tied")
+        : r.anyLive ? "Live" : "Projected";
+      body = `
+        <div class="hub-score">
+          <div class="side"><div class="sub">You</div>
+            <div class="pts${winning ? " lead" : ""}">${big(r.a)}</div>
+            <div class="sub">${r.anyLive && !r.done ? `proj ${fmt(r.a.exp)} · ${r.a.left} left` : r.done ? "final" : "projected"}</div></div>
+          <div class="vs">VS</div>
+          <div class="side" style="text-align:right"><div class="sub nm1">${esc(r.opp.name)}</div>
+            <div class="pts${!winning ? " lead" : ""}">${big(r.b)}</div>
+            <div class="sub">${r.anyLive && !r.done ? `proj ${fmt(r.b.exp)} · ${r.b.left} left` : r.done ? "final"
+              : `${r.opp.wins || 0}-${r.opp.losses || 0}`}</div></div>
+        </div>
+        ${wpv != null && !r.done ? `<div class="hub-wp" aria-label="Win chance ${wpv}%">
+          <div class="bar"><i style="width:${wpv}%"></i></div>
+          <span><b>${wpv}%</b> to win</span></div>` : ""}
+        <div class="row" style="justify-content:space-between">
+          <span class="chip ${r.done ? (r.a.got > r.b.got ? "good" : "bad") : r.anyLive ? "good" : ""}">${state}</span>
+          <span class="sub">Open matchup ›</span>
+        </div>`;
+    }
+    return `<button class="card pad stack hub-card" data-hub="${esc(lg.key)}">
+      <div class="hub-top">${logo(m)}
+        <div style="min-width:0; flex:1">
+          <div class="eyebrow">${esc(lg.platform)} · ${esc(lg.name)} · ${esc(lg.type)}</div>
+          <div class="nm2">${esc(m.name)}</div>
+          <div class="sub">${meta}</div>
+        </div></div>
+      ${body}
+    </button>`;
+  };
+
+  const summary = stale ? `Week ${stale} hasn't loaded yet.`
+    : live.length ? `Leading in ${leading} of ${live.length} live matchup${live.length === 1 ? "" : "s"}`
+    : withWp ? `Projected ${xWins.toFixed(1)} wins from ${withWp} matchup${withWp === 1 ? "" : "s"}`
+    : "Loading this week's matchups…";
+  const newest = Math.max(0, ...leagues.map(l => (l._hub && l._hub.at) || 0));
+
+  $("#p-hub").innerHTML = `
+    <div class="card pad stack" style="gap:6px">
+      <div class="row" style="justify-content:space-between">
+        <div><span class="eyebrow">All your teams · Week ${wk}</span>
+          <div class="h-sec">${summary}</div></div>
+        <button class="btn sm ghost" data-hub-refresh>Refresh</button>
+      </div>
+      <div class="sub">${newest ? "Scores read from Sleeper and ESPN at "
+        + new Date(newest).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + ". " : ""}Tap a team to open its matchup.</div>
+    </div>
+    <div class="hub-grid">${rows.map(card).join("")}</div>`;
+
+  _hubTimer = setTimeout(() => {
+    if (S.tab === "hub" && !document.hidden) renderHub();
+  }, anyRunning() ? 60e3 : 300e3);
 }
 
 function renderMatchup() {
@@ -4905,6 +5124,10 @@ async function boot() {
     if (ex && !ex.closest(".sheet")) { exportXlsx(ex.dataset.export); return; }
     const go = e.target.closest("[data-goto]");
     if (go) { show(go.dataset.goto); return; }
+    const hb = e.target.closest("[data-hub]");
+    if (hb) { S.tab = "matchup"; switchLeague(hb.dataset.hub); return; }
+    const hr = e.target.closest("[data-hub-refresh]");
+    if (hr) { (S.leagues || []).forEach(l => { if (l._hub) l._hub.at = 0; }); renderHub(); return; }
     const lv = e.target.closest("[data-lview]");
     if (lv) { try { localStorage.setItem("sacko.leagueView", lv.dataset.lview); } catch {}
       renderLeague(); return; }
