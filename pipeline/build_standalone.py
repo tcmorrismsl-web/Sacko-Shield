@@ -483,6 +483,12 @@ doc = f"""<!doctype html>
   body {{ margin: 0; font: 14px system-ui, sans-serif; }}
   img {{ max-width: 100%; }}
   [hidden] {{ display: none !important; }}
+  html {{ background: #eef1f0; }}
+  @media (prefers-color-scheme: dark) {{ html {{ background: #0b1312; }} }}
+  #boot {{ position: fixed; inset: 0; display: grid; place-items: center; z-index: 999;
+          font: 600 15px system-ui, sans-serif; color: #6b807c; background: #eef1f0; }}
+  @media (prefers-color-scheme: dark) {{ #boot {{ background: #0b1312; color: #879a95; }} }}
+  #boot.gone {{ display: none; }}
 </style>
 {src}
 </head>
@@ -493,7 +499,7 @@ doc = f"""<!doctype html>
 doc = doc.replace("</head>\n</html>", "</head>\n<body></body>\n</html>")
 head_end = doc.index("<style>\n:root{")
 title_block, rest = doc[:head_end], doc[head_end:]
-doc = title_block + "</head>\n<body>\n" + rest.replace(
+doc = title_block + "</head>\n<body>\n<div id=\"boot\">Loading Sacko Shield…</div>\n" + rest.replace(
     "</head>\n<body></body>\n</html>", "</body>\n</html>")
 # The 1.4 MB of data goes AFTER the header and tab markup, right before the
 # script that reads it, so a slow connection paints the app shell first

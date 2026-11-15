@@ -366,6 +366,9 @@ a{color:var(--brand)}
    the page as JSON. League data comes from a live Sleeper call when the
    sandbox allows it, otherwise from the copy baked in at publish time.
    ========================================================================= */
+// the page has arrived and parsed: take down the loading splash
+{ const b = document.getElementById("boot"); if (b) b.classList.add("gone"); }
+
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -2012,19 +2015,35 @@ function renderTabs() {
 ["gesturestart", "gesturechange"].forEach(ev =>
   document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
 
-/* Stay current. A phone keeps an open page (and a home-screen app) for
-   days, and opening the personal link again only changes the #fragment, so
-   it never reloads. Whenever the page comes back into view (at most every
-   five minutes) it reads the published page's build fingerprint and reloads
-   if a newer version is out. Nothing is lost: leagues and team live in
-   browser storage and the link. */
+/* Stay current, and open instantly. On the published page a small service
+   worker (sw.js) keeps the last copy of this page, so the app opens at once
+   even on a weak signal, and refreshes that copy in the background. When the
+   page comes back into view (at most every five minutes) it reads the
+   published build fingerprint; if a newer version is out, it has the worker
+   store it, then swaps to it straight away if the app was only just opened,
+   or the next time it's opened. Without a worker it reloads to a fresh ?v=
+   address, at most once per build per ten minutes, so it can't loop. Nothing
+   is lost either way: leagues and team live in browser storage and the link. */
 (function keepCurrent() {
   const meta = document.querySelector('meta[name="sacko-build"]');
   const mine = meta && meta.content;
   if (!mine || mine.startsWith("__") || location.protocol === "file:") return;
-  let last = 0;
+  const loadedAt = Date.now();
+  const swOK = "serviceWorker" in navigator && location.protocol === "https:";
+  if (swOK) navigator.serviceWorker.register("sw.js").catch(() => {});
+  const controlled = () => swOK && navigator.serviceWorker.controller;
+  const storeNew = () => new Promise(res => {
+    const ch = new MessageChannel();
+    const t = setTimeout(() => res(false), 90e3);
+    ch.port1.onmessage = e => { clearTimeout(t); res(!!(e.data && e.data.ok)); };
+    try { navigator.serviceWorker.controller.postMessage({ type: "update" }, [ch.port2]); }
+    catch { clearTimeout(t); res(false); }
+  });
+  let last = 0, ready = false;
   async function check() {
-    if (document.visibilityState !== "visible" || Date.now() - last < 5 * 60e3) return;
+    if (document.visibilityState !== "visible") return;
+    if (ready) { location.reload(); return; }      // already stored: opens instantly
+    if (Date.now() - last < 5 * 60e3) return;
     last = Date.now();
     try {
       const r = await fetch(location.pathname + "?build-check=" + Date.now(), { cache: "no-store" });
@@ -2039,9 +2058,12 @@ function renderTabs() {
       reader.cancel().catch(() => {});
       const m = head.match(/name="sacko-build" content="([0-9a-f]{6,})"/);
       if (!m || m[1] === mine) return;
-      // Reload at most once per new build per ten minutes: if the host's
-      // cache hands back the old page again, don't loop. The ?v= address is
-      // new, so the reload asks the host for the new page, not its cache.
+      if (controlled()) {
+        if (!(await storeNew())) return;
+        ready = true;
+        if (Date.now() - loadedAt < 20e3 && document.visibilityState === "visible") location.reload();
+        return;
+      }
       let tried = null;
       try { tried = JSON.parse(sessionStorage.getItem("sacko.reloadFor") || "null"); } catch {}
       if (tried && tried.b === m[1] && Date.now() - tried.at < 10 * 60e3) return;
