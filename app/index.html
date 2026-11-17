@@ -2029,9 +2029,14 @@ function renderTabs() {
   const mine = meta && meta.content;
   if (!mine || mine.startsWith("__") || location.protocol === "file:") return;
   const loadedAt = Date.now();
-  const swOK = "serviceWorker" in navigator && location.protocol === "https:";
-  if (swOK) navigator.serviceWorker.register("sw.js").catch(() => {});
-  const controlled = () => swOK && navigator.serviceWorker.controller;
+  // The offline-copy worker is retired (it could blank the page in Safari).
+  // Remove any installed copy; sw.js itself is now a self-removing stub.
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+    try { caches.keys().then(ks => ks.forEach(k => caches.delete(k))).catch(() => {}); } catch {}
+  }
+  const controlled = () => false;
   const storeNew = () => new Promise(res => {
     const ch = new MessageChannel();
     const t = setTimeout(() => res(false), 90e3);

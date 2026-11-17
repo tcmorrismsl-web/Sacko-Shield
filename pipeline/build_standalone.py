@@ -499,7 +499,17 @@ doc = f"""<!doctype html>
 doc = doc.replace("</head>\n</html>", "</head>\n<body></body>\n</html>")
 head_end = doc.index("<style>\n:root{")
 title_block, rest = doc[:head_end], doc[head_end:]
-doc = title_block + "</head>\n<body>\n<div id=\"boot\">Loading Sacko Shield…</div>\n" + rest.replace(
+BOOT = (
+    '<div id="boot">Loading Sacko Shield…</div>\n'
+    # if anything throws before the app has drawn itself, say so on screen
+    # (with a way out) instead of leaving a blank page
+    '<script>window.addEventListener("error",function(e){var b=document.getElementById("boot");'
+    'if(!b||b.className==="gone"&&document.querySelector("header"))return;'
+    'b.className="";b.style.cssText+=";padding:24px;text-align:center;line-height:1.5";'
+    'b.innerHTML="Sacko Shield hit an error while opening:<br><code style=\'font-size:12px\'>"'
+    '+String(e.message||e.type).replace(/[<&]/g,"")+"</code><br><a href=\'?reset=1\'>Tap to reload</a>";});</script>\n'
+)
+doc = title_block + "</head>\n<body>\n" + BOOT + rest.replace(
     "</head>\n<body></body>\n</html>", "</body>\n</html>")
 # The 1.4 MB of data goes AFTER the header and tab markup, right before the
 # script that reads it, so a slow connection paints the app shell first

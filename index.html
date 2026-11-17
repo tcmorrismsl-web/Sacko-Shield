@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" sizes="48x48" href="brand/favicon.png">
 <link rel="icon" type="image/svg+xml" href="brand/logo.svg">
 <meta name="apple-mobile-web-app-title" content="Sacko Shield">
-<meta name="sacko-build" content="db681592d18c">
+<meta name="sacko-build" content="5185f5e6f570">
 <meta name="theme-color" content="#0b0b0c">
 <style>
   :root {
@@ -40,6 +40,7 @@
 </head>
 <body>
 <div id="boot">Loading Sacko Shield…</div>
+<script>window.addEventListener("error",function(e){var b=document.getElementById("boot");if(!b||b.className==="gone"&&document.querySelector("header"))return;b.className="";b.style.cssText+=";padding:24px;text-align:center;line-height:1.5";b.innerHTML="Sacko Shield hit an error while opening:<br><code style='font-size:12px'>"+String(e.message||e.type).replace(/[<&]/g,"")+"</code><br><a href='?reset=1'>Tap to reload</a>";});</script>
 <style>
 :root{
   --paper:#eef1f0; --card:#ffffff; --card2:#f6f9f8; --sunk:#e4eae8;
@@ -2082,9 +2083,14 @@ function renderTabs() {
   const mine = meta && meta.content;
   if (!mine || mine.startsWith("__") || location.protocol === "file:") return;
   const loadedAt = Date.now();
-  const swOK = "serviceWorker" in navigator && location.protocol === "https:";
-  if (swOK) navigator.serviceWorker.register("sw.js").catch(() => {});
-  const controlled = () => swOK && navigator.serviceWorker.controller;
+  // The offline-copy worker is retired (it could blank the page in Safari).
+  // Remove any installed copy; sw.js itself is now a self-removing stub.
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+    try { caches.keys().then(ks => ks.forEach(k => caches.delete(k))).catch(() => {}); } catch {}
+  }
+  const controlled = () => false;
   const storeNew = () => new Promise(res => {
     const ch = new MessageChannel();
     const t = setTimeout(() => res(false), 90e3);
