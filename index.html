@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" sizes="48x48" href="brand/favicon.png">
 <link rel="icon" type="image/svg+xml" href="brand/logo.svg">
 <meta name="apple-mobile-web-app-title" content="Sacko Shield">
-<meta name="sacko-build" content="60d194aed43d">
+<meta name="sacko-build" content="db681592d18c">
 <meta name="theme-color" content="#0b0b0c">
 <style>
   :root {
@@ -2222,9 +2222,11 @@ const isStandalone = () => typeof STANDALONE !== "undefined" && STANDALONE;
 
 /** What to do about it, which depends on which copy this is. */
 function staleRemedy(c) {
-  return isStandalone()
-    ? `A downloaded copy never updates itself. Open Sacko Shield in Claude for
-       Week ${c} — that page is rebuilt on a schedule.`
+  return /github\.io$/.test(location.hostname)
+    ? `Week ${c} builds automatically after Monday night's game; this page picks
+       it up on its own — no need to reload.`
+    : isStandalone()
+    ? `A downloaded copy never updates itself. Open the published app for Week ${c}.`
     : `The next scheduled rebuild brings in Week ${c}.`;
 }
 

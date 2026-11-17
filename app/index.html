@@ -2169,9 +2169,11 @@ const isStandalone = () => typeof STANDALONE !== "undefined" && STANDALONE;
 
 /** What to do about it, which depends on which copy this is. */
 function staleRemedy(c) {
-  return isStandalone()
-    ? `A downloaded copy never updates itself. Open Sacko Shield in Claude for
-       Week ${c} — that page is rebuilt on a schedule.`
+  return /github\.io$/.test(location.hostname)
+    ? `Week ${c} builds automatically after Monday night's game; this page picks
+       it up on its own — no need to reload.`
+    : isStandalone()
+    ? `A downloaded copy never updates itself. Open the published app for Week ${c}.`
     : `The next scheduled rebuild brings in Week ${c}.`;
 }
 
