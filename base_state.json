@@ -1,0 +1,13 @@
+{
+ "checked_at": "2026-11-21T12:37:54.563927+00:00",
+ "result": "inputs unchanged",
+ "built": "2026-11-20T17:22:26.720180+00:00",
+ "inputs": {
+  "build_version": 1,
+  "week": 11,
+  "nflverse_team_weeks": 302,
+  "values": "2026-11-20",
+  "ecr": "2026-11-20",
+  "feed_through": 10
+ }
+}
