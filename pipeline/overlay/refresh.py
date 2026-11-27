@@ -55,6 +55,29 @@ COLD = [  # (max F, yards, tds, receptions, field goals)
     (25, 0.93, 0.93, 0.92, 0.83),
     (40, 0.95, 1.00, 0.95, 0.90),
 ]
+# Rain and snow, measured by pipeline/analysis/weather_precip.py: games with
+# precipitation in the play-by-play weather text against dry games in the same
+# wind or temperature band, so they stack on the wind/cold factors above
+# without counting them twice. Rain: 108 games; snow: 21, so snow is pulled
+# halfway back toward the rain figures. See docs/weather.md.
+PRECIP = {  # kind: (pass/rec yards, pass/rec TDs, receptions, rush yards, rush TDs)
+    "rain": (0.90, 0.82, 0.93, 1.03, 1.00),
+    "snow": (0.85, 0.78, 0.85, 1.10, 1.10),
+}
+RAIN_MIN_IN = 0.10   # forecast rain over the game window before it counts
+SNOW_MIN_IN = 0.20
+
+
+def precip_kind(prob, amount, snow):
+    """('rain'|'snow'|None, weight). The weight is the forecast probability, so
+    a 60% chance of rain moves the numbers 60% of the measured effect."""
+    if snow is not None and snow >= SNOW_MIN_IN:
+        kind = "snow"
+    elif amount is not None and amount >= RAIN_MIN_IN:
+        kind = "rain"
+    else:
+        return None, 0.0
+    return kind, round(min(1.0, max(0.0, (prob or 0) / 100)), 2)
 
 # Stats kept from Sleeper's projection lines. Anything a league could score;
 # scoreLine() ignores keys a league doesn't pay for.
@@ -357,16 +380,19 @@ def practice_report(season, week, id_text, status, diag):
 
 
 # --- weather ----------------------------------------------------------------------
-def wx_multipliers(wind, temp):
-    m = {"yd": 1.0, "td": 1.0, "rec": 1.0, "fg": 1.0}
+def wx_multipliers(wind, temp, kind=None, weight=0.0):
+    m = {"yd": 1.0, "td": 1.0, "rec": 1.0, "fg": 1.0, "ry": 1.0, "rtd": 1.0}
     for lo, yd, td, rec, fg in WIND:
         if wind is not None and wind >= lo:
-            m = {"yd": m["yd"] * yd, "td": m["td"] * td, "rec": m["rec"] * rec, "fg": m["fg"] * fg}
+            m = {**m, "yd": m["yd"] * yd, "td": m["td"] * td, "rec": m["rec"] * rec, "fg": m["fg"] * fg}
             break
     for hi, yd, td, rec, fg in COLD:
         if temp is not None and temp <= hi:
-            m = {"yd": m["yd"] * yd, "td": m["td"] * td, "rec": m["rec"] * rec, "fg": m["fg"] * fg}
+            m = {**m, "yd": m["yd"] * yd, "td": m["td"] * td, "rec": m["rec"] * rec, "fg": m["fg"] * fg}
             break
+    if kind in PRECIP and weight > 0:
+        for key, f in zip(("yd", "td", "rec", "ry", "rtd"), PRECIP[kind]):
+            m[key] *= 1 - weight * (1 - f)
     return {k: round(v, 3) for k, v in m.items()}
 
 
@@ -413,12 +439,14 @@ def game_weather(g, diag):
         flags.append("snow")
     elif pprob >= 50 and precip >= 0.1:
         flags.append("rain")
+    kind, weight = precip_kind(pprob, precip, snow)
     out = {**base, "temp_f": temp, "wind_mph": wind, "gust_mph": gust, "precip_in": precip,
            "precip_prob": pprob, "snow_in": snow, "flags": flags,
+           "precip_kind": kind, "precip_weight": weight,
            "hours": len(idx), "forecast_at": iso(now_utc())}
     # a retractable roof is open or closed on game day, so no adjustment
     if roof == "outdoor":
-        out["mult"] = wx_multipliers(wind, temp)
+        out["mult"] = wx_multipliers(wind, temp, kind, weight)
     return out
 
 

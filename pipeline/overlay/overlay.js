@@ -57,6 +57,8 @@ function wxKind(k) {
   if (/^(pass_td|rec_td)$/.test(k)) return "td";
   if (/^(rec|pass_cmp|bonus_rec_(te|rb|wr)|rec_\d+_\d+|rec_40p)$/.test(k)) return "rec";
   if (/^(fga|fgm|fgm_\d+_\d+|fgm_50p|fgm_yds|fgmiss|fgmiss_\d+_\d+|fgmiss_50p)$/.test(k)) return "fg";
+  if (/^(rush_yd|rush_fd|rush_att|rush_40p)$/.test(k)) return "ry";   // rain/snow only
+  if (k === "rush_td") return "rtd";
   return null;
 }
 
@@ -103,6 +105,7 @@ function applyOverlay(ov) {
       p[k] = p._base[k] && typeof p._base[k] === "object"
         ? JSON.parse(JSON.stringify(p._base[k])) : p._base[k];
     p.wx = null; p.trend = null; p.inj_title = null; p.ov_note = null; p.prac = null;
+    p.pstats_raw = null;
 
     // the game: opponent and home/away from this week's kickoff table
     const g = kick[p.team];
@@ -139,7 +142,10 @@ function applyOverlay(ov) {
     const w = (ov.weather || {})[p.team];
     if (w && g && !g.final) {
       p.wx = w;
-      if (w.mult && p.pos !== "DST" && p.pstats) p.pstats = weatherLine(p.pstats, w.mult);
+      if (w.mult && p.pos !== "DST" && p.pstats) {
+        p.pstats_raw = p.pstats;                 // kept for the Weather tab's before/after
+        p.pstats = weatherLine(p.pstats, w.mult);
+      }
     }
     if (p.pstats && p.pos !== "DST") p.proj = pprOf(p.pstats);
 
@@ -348,14 +354,13 @@ function wxChip(p) {
   const m = w.mult || {};
   const pct = Math.round((1 - (p.pos === "K" ? (m.fg ?? 1) : (m.yd ?? 1))) * 100);
   const adj = pct >= 5;
-  if (!adj && !flags.length) return "";
-  const title = `${w.stadium || ""} forecast for kickoff: ${bits.join(", ")}${
-    w.gust_mph ? `, gusts ${Math.round(w.gust_mph)} mph` : ""}${
-    w.precip_prob ? `, ${w.precip_prob}% chance of precipitation` : ""}${
-    pct > 0 ? ` — ${p.pos === "K" ? "field goals" : "passing and receiving yards"} −${pct}% in this projection` : ""}`;
-  const label = flags.includes("snow") ? "snow" : flags.includes("rain") ? "rain"
-    : `${Math.round(w.wind_mph || 0)} mph`;
-  return `<span class="chip ${adj && pct >= 8 ? "warn" : ""}" title="${esc(title)}">🌬 ${esc(label)}</span>`;
+  if (!adj && !flags.length && !w.precip_kind) return "";
+  const why = typeof wxWhy === "function" ? wxWhy(w, p.pos) : bits.join(", ");
+  const title = `${w.stadium || ""} kickoff forecast: ${why} (in this projection; see the Weather tab)`;
+  const kind = w.precip_kind || (flags.includes("snow") ? "snow" : flags.includes("rain") ? "rain" : null);
+  const label = kind || `${Math.round(w.wind_mph || 0)} mph`;
+  const icon = kind === "snow" ? "❄" : kind === "rain" ? "☂" : "🌬";
+  return `<span class="chip ${adj && pct >= 8 ? "warn" : ""}" title="${esc(title)}">${icon} ${esc(label)}</span>`;
 }
 
 function pracChip(p) {

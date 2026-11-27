@@ -96,10 +96,10 @@ button,input,select{font:inherit; color:inherit}
     padding-bottom:env(safe-area-inset-bottom,0px);
     box-shadow:0 -4px 16px -10px rgba(16,32,30,.35); overflow:visible;
   }
-  .tabs-in{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:0; padding:0 2px}
+  .tabs-in{display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:0; padding:0 2px}
   .tab{
     display:flex; flex-direction:column; align-items:center; gap:3px;
-    padding:8px 0 7px; font-size:10.5px; font-weight:600; letter-spacing:.01em;
+    padding:8px 0 7px; font-size:10px; font-weight:600; letter-spacing:0;
     border-bottom:0; border-top:2.5px solid transparent; min-height:54px;
     overflow:hidden; text-overflow:ellipsis;
   }
@@ -137,6 +137,23 @@ main{max-width:1180px; margin:0 auto; padding-block:18px 64px; padding-left:16px
 .stats{display:flex; flex-wrap:wrap; gap:6px}
 .move.plain{border-color:var(--line); background:var(--card2)}
 .hub-grid{display:grid; gap:12px}
+.h-sub{font-size:15px; font-weight:700; letter-spacing:-.01em; margin:4px 2px 0}
+.wx-kpis{grid-template-columns:repeat(3,1fr)}
+@media(min-width:760px){.wx-kpis{grid-template-columns:repeat(6,1fr)}}
+.wx-kpis .big{font-size:17px; overflow-wrap:anywhere}
+.wx-list{display:flex; flex-direction:column}
+.wx-pl{display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-top:1px solid var(--line); cursor:pointer}
+.wx-pl:first-child{border-top:0}
+.wx-pl-l{min-width:0}
+.wx-pl-l .nm{font-weight:600; display:flex; flex-wrap:wrap; gap:6px; align-items:center}
+.wx-pl-r{text-align:right; flex:none}
+.wx-swap{background:var(--warn-soft); border-radius:8px; padding:9px 11px; font-size:13px}
+.wx-table td, .wx-table th{white-space:nowrap}
+.wx-table td.nm{white-space:normal; min-width:150px}
+.wx-done{opacity:.55}
+td.bad{color:var(--bad)} td.good{color:var(--good)}
+.mono.neg{color:var(--bad)} .mono.pos{color:var(--good)}
+.wx-notes{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px}
 @media(min-width:760px){.hub-grid{grid-template-columns:1fr 1fr}}
 .hub-card{text-align:left; font:inherit; color:inherit; cursor:pointer; width:100%; gap:12px}
 .hub-card:active{transform:scale(.995)}
@@ -350,6 +367,7 @@ a{color:var(--brand)}
 <main>
   <div id="staleBanner"></div>
   <section id="p-hub"    role="tabpanel" class="stack" hidden></section>
+  <section id="p-weather" role="tabpanel" class="stack" hidden></section>
   <section id="p-matchup" role="tabpanel" class="stack"></section>
   <section id="p-week"   role="tabpanel" class="stack" hidden></section>
   <section id="p-waiver" role="tabpanel" class="stack" hidden></section>
@@ -1994,9 +2012,11 @@ const TABS = [
   ["trade",  () => "Trades"],
   ["league", () => "League"],
   ["players",() => "Players"],
+  ["weather",() => "Weather"],
 ];
 
 const TAB_ICONS = {
+  weather: '<path d="M7 17a4 4 0 1 1 .9-7.9A5.5 5.5 0 0 1 18.5 11 3 3 0 0 1 18 17z"/><path d="M9 20l-1 2M13 20l-1 2M17 20l-1 2"/>',
   hub:     '<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>',
   matchup: '<path d="M4 6h6v12H4zM14 6h6v12h-6z"/><path d="M12 3v18" stroke-dasharray="2 2.5"/>',
   week:    '<path d="M4 5h16v15H4z"/><path d="M4 9h16M9 3v4M15 3v4M8 13h3M8 16h6"/>',
@@ -2111,7 +2131,7 @@ function show(tab) {
   TABS.forEach(([k]) => { $("#p-" + k).hidden = k !== tab; });
   $$(".tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
   if (tab !== "hub") clearTimeout(_hubTimer);
-  ({ hub: renderHub, matchup: renderMatchup, week: renderWeek, waiver: renderWaiver,
+  ({ hub: renderHub, weather: renderWeather, matchup: renderMatchup, week: renderWeek, waiver: renderWaiver,
      trade: renderTrade, league: renderLeague, players: renderPlayers }[tab])();
   window.scrollTo({ top: 0, behavior: "instant" });
   try { localStorage.setItem("ss.tab", tab); } catch {}
@@ -2553,6 +2573,226 @@ function renderHub() {
   _hubTimer = setTimeout(() => {
     if (S.tab === "hub" && !document.hidden) renderHub();
   }, anyRunning() ? 60e3 : 300e3);
+}
+
+/* ============================================================== weather
+   Every game this week with its kickoff-window forecast, what that forecast
+   does to the numbers, and which of your players it touches, in each league's
+   own scoring. The multipliers are applied upstream (overlay.js, from
+   refresh.py) to every outdoor game's projection lines, so the lineup, start/sit,
+   waiver and matchup numbers everywhere in the app already include them; this
+   tab shows the before and after. Measured effects: docs/weather.md. */
+const WX_KEYS = [["yd", "Pass/rec yds"], ["td", "Pass/rec TDs"], ["rec", "Receptions"],
+                 ["ry", "Rush yds"], ["fg", "Field goals"]];
+
+function wxCondition(w) {
+  if (!w || w.roof === "unknown") return { label: "No forecast", sev: 0, icon: "·" };
+  if (w.roof === "dome") return { label: "Dome", sev: 0, icon: "⌂" };
+  const kind = w.precip_kind, wind = w.wind_mph || 0, t = w.temp_f;
+  const bits = [];
+  if (kind === "snow") bits.push("Snow");
+  else if (kind === "rain") bits.push(w.precip_in >= 0.4 ? "Heavy rain" : "Rain");
+  if (wind >= 20) bits.push("very windy"); else if (wind >= 15) bits.push("windy");
+  else if (wind >= 10) bits.push("breezy");
+  if (t != null && t <= 25) bits.push("frigid"); else if (t != null && t <= 40) bits.push("cold");
+  const label = bits.length ? bits.join(", ").replace(/^./, c => c.toUpperCase()) : "Fair";
+  if (w.roof !== "outdoor")
+    return { label: "Retractable roof" + (bits.length ? " · " + label.toLowerCase() + " outside" : ""), sev: 0, icon: "⌂" };
+  const m = w.mult || {};
+  const cut = 1 - Math.min(m.yd ?? 1, m.td ?? 1, m.rec ?? 1, m.fg ?? 1);
+  const sev = cut >= 0.15 ? 3 : cut >= 0.07 ? 2 : cut > 0.005 ? 1 : 0;
+  const icon = kind === "snow" ? "❄" : kind === "rain" ? "☂" : wind >= 10 ? "🌬" : t != null && t <= 40 ? "❄" : "☀";
+  return { label, sev, icon };
+}
+const sevChip = sev => sev >= 3 ? "bad" : sev === 2 ? "warn" : sev === 1 ? "acc" : "";
+const pctTxt = x => { const v = Math.round((x - 1) * 100); return v === 0 ? "—" : (v > 0 ? "+" : "−") + Math.abs(v) + "%"; };
+const pctCls = x => Math.abs(x - 1) < 0.005 ? "" : x < 1 ? "bad" : "good";
+
+function wxWhy(w, pos) {
+  const m = w.mult || {};
+  const parts = [];
+  if (w.precip_kind) parts.push(`${w.precip_kind === "snow" ? "snow" : "rain"} (${w.precip_prob}% chance, ${fmt(w.precip_kind === "snow" ? w.snow_in : w.precip_in, 2)} in)`);
+  if ((w.wind_mph || 0) >= 10) parts.push(`${Math.round(w.wind_mph)} mph wind${w.gust_mph ? `, gusts ${Math.round(w.gust_mph)}` : ""}`);
+  if (w.temp_f != null && w.temp_f <= 40) parts.push(`${Math.round(w.temp_f)}°F`);
+  const eff = pos === "K" ? [["fg", "field goals"]]
+    : pos === "RB" ? [["ry", "rushing yards"], ["rec", "catches"], ["yd", "receiving yards"]]
+    : pos === "QB" ? [["yd", "passing yards"], ["td", "passing TDs"], ["ry", "rushing yards"]]
+    : [["rec", "catches"], ["yd", "receiving yards"], ["td", "TDs"]];
+  const fx = eff.filter(([k]) => m[k] != null && Math.abs(m[k] - 1) >= 0.005)
+    .map(([k, n]) => `${n} ${pctTxt(m[k])}`);
+  return (parts.length ? parts.join(", ") : "conditions") + (fx.length ? " → " + fx.join(", ") : "");
+}
+
+function wxRawPj(p) {
+  const sc = scoringOf(S.league);
+  if (p && p.pstats_raw && sc) {
+    const v = scoreLine(p.pstats_raw, sc);
+    if (v != null) return Math.round(v * 100) / 100;
+  }
+  return pj(p);
+}
+
+/** Your roster in one league: every player in a weather game, raw vs adjusted. */
+function wxLeagueImpact(lg) {
+  const myId = lg === S.league ? S.myTeam : lg.my_team;
+  const r = lg.rosters.find(x => x.id === myId) || lg.rosters[0];
+  if (!r || !hasRosters(lg)) return null;
+  const keep = S.league; S.league = lg;
+  try {
+    const fit = p => p && p.opp && !(p.inj === "Out");
+    const adj = optimalLineup(r.players, lg);
+    const raw = optimalLineup(r.players, lg, p => fit(p) ? (wxRawPj(p) ?? 0) : 0);
+    const startIds = new Set(adj.lineup.filter(Boolean).map(p => p.id));
+    const rawIds = new Set(raw.lineup.filter(Boolean).map(p => p.id));
+    const rows = [];
+    for (const id of r.players) {
+      const p = S.byId.get(id);
+      if (!p || !p.opp || !p.wx || p.wx.roof !== "outdoor") continue;
+      const c = wxCondition(p.wx);
+      const a = pj(p), b = wxRawPj(p);
+      const d = a != null && b != null ? a - b : 0;
+      if (Math.abs(d) < 0.05 && !c.sev && !p.wx.precip_kind) continue;
+      rows.push({ p, c, adj: a, raw: b, d, starter: startIds.has(p.id) });
+    }
+    rows.sort((x, y) => (y.starter - x.starter) || (x.d - y.d));
+    const swapsIn = [...startIds].filter(i => !rawIds.has(i)).map(i => S.byId.get(i)).filter(Boolean);
+    const swapsOut = [...rawIds].filter(i => !startIds.has(i)).map(i => S.byId.get(i)).filter(Boolean);
+    const starterDelta = rows.filter(x => x.starter).reduce((a, x) => a + x.d, 0);
+    return { lg, r, rows, starterDelta, swapsIn, swapsOut, adjTotal: adj.total, rawTotal: raw.total };
+  } finally { S.league = keep; }
+}
+
+function renderWeather() {
+  const el = $("#p-weather");
+  const ov = S.ov, wk = Number(S.meta.upcoming_week);
+  if (!ov || !ov.weather || Number(ov.week) !== wk) {
+    el.innerHTML = `<div class="card pad stack"><div><span class="eyebrow">Week ${wk}</span>
+      <div class="h-sec">Weather</div></div><div class="sub">${S.ovErr
+        ? "The forecast couldn't be downloaded yet (slow connection) — it will fill in on its own."
+        : "This week's forecasts load with the next data update."}</div></div>`;
+    return;
+  }
+  const kick = ov.kickoffs || {}, W = ov.weather;
+  const now = Date.now();
+  const games = Object.entries(kick).filter(([, g]) => g.home).map(([home, g]) => {
+    const w = W[home] || null, t0 = Date.parse(g.kick), t1 = Date.parse(g.end || g.kick) || t0 + 3.3 * 3600e3;
+    return { home, away: g.opp, g, w, c: wxCondition(w),
+      state: g.final || now > t1 ? "final" : now >= t0 ? "live" : "pre" };
+  }).sort((a, b) => (a.state === "final") - (b.state === "final") || (b.c.sev - a.c.sev) || (Date.parse(a.g.kick) - Date.parse(b.g.kick)));
+
+  const upcoming = games.filter(x => x.state !== "final");
+  const outdoor = upcoming.filter(x => x.w && x.w.roof === "outdoor");
+  const adjusted = outdoor.filter(x => x.c.sev > 0);
+  const wet = outdoor.filter(x => x.w.precip_kind);
+  const worst = outdoor.slice().sort((a, b) => ((a.w.mult || {}).yd ?? 1) - ((b.w.mult || {}).yd ?? 1))[0];
+  const leagues = (S.leagues || []).filter(l => !l.sample && hasRosters(l));
+  const impacts = leagues.map(wxLeagueImpact).filter(Boolean);
+  const cur = impacts.find(x => x.lg === S.league) || impacts[0];
+  const affectedStarters = cur ? cur.rows.filter(x => x.starter && Math.abs(x.d) >= 0.05).length : 0;
+  const newest = Math.max(0, ...Object.values(W).map(w => Date.parse(w.forecast_at) || 0));
+  const ago = newest ? Math.round((now - newest) / 60e3) : null;
+  const agoTxt = ago == null ? "" : ago < 90 ? `${ago} min ago` : `${Math.round(ago / 60)} h ago`;
+  const when = iso => new Date(iso).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+
+  const tile = (lbl, big, sub) => `<div class="tile"><div class="lbl">${lbl}</div><div class="big">${big}</div><div class="sub">${sub}</div></div>`;
+  const kpis = `<div class="tilerow wx-kpis">
+    ${tile("Outdoor games", `${outdoor.length}<span class="sub"> / ${upcoming.length}</span>`, "still to play")}
+    ${tile("Weather-hit", adjusted.length, "games with projections cut")}
+    ${tile("Rain / snow", wet.length, wet.length ? wet.map(x => x.home).join(", ") : "none forecast")}
+    ${tile("Worst", worst && (worst.w.mult || {}).yd < 0.995 ? `${worst.away}@${worst.home}` : "—",
+      worst && (worst.w.mult || {}).yd < 0.995 ? `pass yds ${pctTxt(worst.w.mult.yd)}, TDs ${pctTxt(worst.w.mult.td)}` : "no game cut")}
+    ${tile("Your starters hit", cur ? affectedStarters : "—", cur ? esc(cur.lg.name) : "no league loaded")}
+    ${tile("Starter pts", cur ? (cur.starterDelta <= -0.05 ? "−" + fmt(-cur.starterDelta) : cur.starterDelta >= 0.05 ? "+" + fmt(cur.starterDelta) : "0.0") : "—",
+      cur ? `projected ${fmt(cur.adjTotal)} after weather` : "")}
+  </div>`;
+
+  const leagueCard = x => {
+    const head = `<div class="row" style="justify-content:space-between">
+        <div><span class="eyebrow">${esc(x.lg.platform)} · ${esc(x.lg.name)}</span>
+          <div class="h-sec" style="font-size:16px">${esc(x.r.name)}</div></div>
+        <div style="text-align:right"><div class="mono ${x.starterDelta < -0.05 ? "neg" : ""}" style="font-weight:700">${
+          x.starterDelta <= -0.05 ? "−" + fmt(-x.starterDelta) : x.starterDelta >= 0.05 ? "+" + fmt(x.starterDelta) : "±0"} pts</div>
+          <div class="sub">starters, from weather</div></div></div>`;
+    const swap = x.swapsIn.length
+      ? `<div class="wx-swap"><b>Weather changes your best lineup:</b> start ${x.swapsIn.map(p => `<b>${esc(p.name)}</b>`).join(", ")}
+         over ${x.swapsOut.map(p => `<b>${esc(p.name)}</b>`).join(", ")}.</div>` : "";
+    const body = x.rows.length ? `<div class="wx-list">${x.rows.map(row => {
+      const p = row.p;
+      return `<div class="wx-pl" data-player="${esc(p.id)}" tabindex="0">
+        <div class="wx-pl-l"><div class="nm">${esc(p.name)} <span class="sub">${esc(p.pos)} · ${esc(p.team)} ${esc(p.wk_opp || "")}</span>
+          ${row.starter ? '<span class="chip acc">starter</span>' : '<span class="chip">bench</span>'}</div>
+          <div class="sub">${row.c.icon} ${esc(wxWhy(p.wx, p.pos))}</div></div>
+        <div class="wx-pl-r"><div class="mono"><span class="sub">${fmt(row.raw)} →</span> <b>${fmt(row.adj)}</b></div>
+          <div class="mono ${row.d < -0.05 ? "neg" : row.d > 0.05 ? "pos" : "sub"}">${row.d >= 0 ? "+" : "−"}${fmt(Math.abs(row.d))}</div></div>
+      </div>`; }).join("")}</div>`
+      : `<div class="sub">None of your players are in a game the weather moves.</div>`;
+    return `<div class="card pad stack" style="gap:10px">${head}${swap}${body}</div>`;
+  };
+
+  const gameRow = x => {
+    const w = x.w || {}, m = w.mult || {}, out = w.roof === "outdoor";
+    const st = x.state === "final" ? '<span class="chip">Final</span>' : x.state === "live" ? '<span class="chip good">Live</span>' : "";
+    return `<tr class="${x.state === "final" ? "wx-done" : ""}">
+      <td class="nm"><b>${esc(x.away)} @ ${esc(x.home)}</b> ${st}<div class="sub">${esc(w.stadium || "")} · ${when(x.g.kick)}</div></td>
+      <td><span class="chip ${sevChip(x.c.sev)}">${x.c.icon} ${esc(x.c.label)}</span>${out && x.c.sev
+        ? `<div class="sub" style="margin-top:3px">pass ${pctTxt(m.yd ?? 1)} · TDs ${pctTxt(m.td ?? 1)}${(m.ry ?? 1) > 1.004 ? ` · rush ${pctTxt(m.ry)}` : ""}</div>` : ""}</td>
+      <td class="n">${w.temp_f != null ? Math.round(w.temp_f) + "°" : "—"}</td>
+      <td class="n">${w.wind_mph != null ? Math.round(w.wind_mph) : "—"}${w.gust_mph ? `<span class="sub"> / ${Math.round(w.gust_mph)}</span>` : ""}</td>
+      <td class="n">${w.precip_prob != null ? w.precip_prob + "%" : "—"}${w.precip_in ? `<div class="sub">${fmt(w.precip_in, 2)} in</div>` : ""}${w.snow_in ? `<div class="sub">❄ ${fmt(w.snow_in, 1)} in</div>` : ""}</td>
+      ${WX_KEYS.map(([k]) => `<td class="n ${out ? pctCls(m[k] ?? 1) : ""}">${out ? pctTxt(m[k] ?? 1) : "—"}</td>`).join("")}
+    </tr>`;
+  };
+
+  el.innerHTML = `
+    <div class="card pad stack" style="gap:6px">
+      <div class="row" style="justify-content:space-between">
+        <div><span class="eyebrow">Week ${wk} · kickoff-window forecasts</span>
+          <div class="h-sec">Weather</div></div>
+      </div>
+      <div class="sub">Forecast ${agoTxt ? "updated " + agoTxt : ""} from Open-Meteo, averaged over each game's
+        3 hours. Every projection in the app already includes these adjustments — start/sit, waivers,
+        trades and matchups. It refreshes on its own through the weekend.</div>
+    </div>
+    ${kpis}
+    <div class="stack" style="gap:12px">
+      <div class="h-sub">Your players</div>
+      ${impacts.length ? impacts.map(leagueCard).join("") : `<div class="card pad sub">Connect a league to see which of your players the weather touches.</div>`}
+    </div>
+    <div class="card">
+      <div class="pad" style="border-bottom:1px solid var(--line)"><div class="h-sub" style="margin:0">Every game</div>
+        <div class="sub">Change to each team's projection from that game's forecast. Wind in mph (sustained / gusts).</div></div>
+      <div class="tw"><table class="wx-table"><thead><tr>
+        <th>Game</th><th>Conditions</th><th class="n">Temp</th><th class="n">Wind</th><th class="n">Precip</th>
+        ${WX_KEYS.map(([, n]) => `<th class="n">${n}</th>`).join("")}
+      </tr></thead><tbody>${games.map(gameRow).join("")}</tbody></table></div>
+    </div>
+    <div class="card pad stack" style="gap:8px">
+      <div class="h-sub" style="margin:0">How weather moves fantasy points</div>
+      <div class="sub">Measured from every outdoor regular-season game 2016–2025, each team against its own
+        season average, so team quality drops out.</div>
+      <div class="tw"><table><thead><tr><th>Condition</th><th class="n">Games</th><th class="n">Pass yds</th>
+        <th class="n">Pass TDs</th><th class="n">Catches</th><th class="n">Rush yds</th><th class="n">FGs</th></tr></thead><tbody>
+        <tr><td>Wind 10–14 mph</td><td class="n">584</td><td class="n bad">−4%</td><td class="n bad">−8%</td><td class="n bad">−3%</td><td class="n">—</td><td class="n">—</td></tr>
+        <tr><td>Wind 15–19 mph</td><td class="n">239</td><td class="n bad">−8%</td><td class="n bad">−8%</td><td class="n bad">−4%</td><td class="n">—</td><td class="n bad">−4%</td></tr>
+        <tr><td>Wind 20+ mph</td><td class="n">50</td><td class="n bad">−13%</td><td class="n bad">−9%</td><td class="n bad">−12%</td><td class="n">—</td><td class="n bad">−10%</td></tr>
+        <tr><td>26–40°F</td><td class="n">286</td><td class="n bad">−5%</td><td class="n">—</td><td class="n bad">−5%</td><td class="n">—</td><td class="n bad">−10%</td></tr>
+        <tr><td>25°F or colder</td><td class="n">51</td><td class="n bad">−7%</td><td class="n bad">−7%</td><td class="n bad">−8%</td><td class="n">—</td><td class="n bad">−17%</td></tr>
+        <tr><td>Rain</td><td class="n">108</td><td class="n bad">−10%</td><td class="n bad">−18%</td><td class="n bad">−7%</td><td class="n good">+3%</td><td class="n">—</td></tr>
+        <tr><td>Snow</td><td class="n">21</td><td class="n bad">−15%</td><td class="n bad">−22%</td><td class="n bad">−15%</td><td class="n good">+10%</td><td class="n">—</td></tr>
+      </tbody></table></div>
+      <ul class="sub wx-notes">
+        <li><b>They stack.</b> Rain on top of wind is measured against dry games in the same wind, and the two multiply:
+          a rainy 15 mph day cuts passing yards about 17% and passing TDs about 25%.</li>
+        <li><b>Rain and snow scale with the forecast's chance:</b> 60% chance of rain moves the numbers 60% of the way.
+          Rain counts at 0.1 in or more over the game, snow at 0.2 in.</li>
+        <li><b>Who it helps:</b> teams run more in rain (+4% carries) and snow (+10%), so lead backs hold up or gain while
+          QBs, WRs, TEs and kickers lose. Rushing doesn't move with wind or cold.</li>
+        <li><b>Defenses:</b> scoring drops 13% in rain, which helps D/ST, but D/ST projections price off the betting line,
+          and the line already reflects the forecast, so they aren't adjusted again.</li>
+        <li><b>Not adjusted:</b> fixed domes; retractable roofs (usually closed in exactly this weather); gusts on their own
+          (no gust history to measure). Snow has only 21 games behind it, so it's pulled halfway toward the rain figures.</li>
+      </ul>
+    </div>`;
 }
 
 function renderMatchup() {

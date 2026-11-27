@@ -53,9 +53,40 @@ completions and per-reception bonuses; "field goals" every fgm/fgmiss/fga key.
 
 ## Precipitation
 
-games.csv has no rain or snow history, so there is nothing to measure an effect
-from. Rain (≥50% chance and ≥0.1 in over the game window) and snow (≥0.2 in) are
-**flagged only**, never applied to the numbers.
+games.csv has no rain or snow, so the label comes from the play-by-play
+`weather` text nflverse records for each game ("Rain Temp: 45° F, ..."),
+2016–2025. Forecast-style wording ("chance of rain", "possible", "expected")
+is not counted. Script: `pipeline/analysis/weather_precip.py` (same
+leave-one-out method as above; bootstrap SEs over games). 108 rain games and
+21 snow games, outdoors.
+
+Rain against dry games in the same band, so it stacks on wind/cold:
+
+| Rain vs dry | games | pass yds | pass TD | completions | carries | rush yds | points |
+|---|---|---|---|---|---|---|---|
+| calm (<10 mph), >40°F | 57 | 0.907 | 0.803 | 0.940 | 1.031 | 1.051 | 0.889 |
+| windy (10+ mph) | 43 | 0.876 | 0.730 | 0.911 | 1.047 | 1.008 | 0.827 |
+| cold (≤40°F) | 17 | 0.819 | 0.701 | 0.869 | 1.070 | 1.003 | 0.755 |
+
+Snow against dry games ≤40°F (21 games): pass yds 0.85, pass TD 0.76,
+completions 0.83, carries 1.08, rush yds 1.18 (±0.07), rush TD 1.48 (±0.19).
+Rush TDs in rain showed no reliable effect (0.89–0.93, ±0.10).
+
+Applied (multiplied onto the wind/cold factors):
+
+| | yards | TDs | receptions | rush yds/att | rush TDs |
+|---|---|---|---|---|---|
+| rain | 0.90 | 0.82 | 0.93 | 1.03 | 1.00 |
+| snow | 0.85 | 0.78 | 0.85 | 1.10 | 1.10 |
+
+Snow is pulled about halfway toward the rain figures because of its sample.
+Rain counts when the forecast has ≥0.1 in over the game window, snow at
+≥0.2 in, and the effect is weighted by the forecast probability (60% chance →
+60% of the effect). Field goals in rain weren't measurable (no FG attempts in
+the team-week file) and aren't adjusted for rain. D/ST: scoring falls ~13% in
+rain, but D/ST projections price off the betting line, which already reflects
+the forecast, so they are not adjusted again. Gusts are shown but not applied:
+there's no gust history to measure.
 
 ## Caveats
 
